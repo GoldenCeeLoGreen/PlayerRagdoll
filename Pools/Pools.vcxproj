@@ -7,20 +7,24 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Globals.h" />
+    <ClInclude Include="UtilitiesChecks.h" />
+    <ClInclude Include="UtilitiesConfig.h" />
+    <ClInclude Include="UtilitiesLogger.h" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="script.cpp" />
+    <ClInclude Include="script.h" />
+    <ClInclude Include="UtilitiesGets.h" />
+    <ClInclude Include="UtilitiesRandom.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\main.h" />
-    <ClInclude Include="..\..\inc\enums.h" />
     <ClInclude Include="..\..\inc\natives.h" />
     <ClInclude Include="..\..\inc\types.h" />
-    <ClInclude Include="script.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8D82F34A-1D64-465B-84B1-37F89AD3D20B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>Pools</RootNamespace>
+    <RootNamespace>PlayerRagdoll</RootNamespace>
     <ProjectName>PlayerRagdoll</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

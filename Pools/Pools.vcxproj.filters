@@ -2,22 +2,24 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="script.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\inc\enums.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\inc\natives.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\..\inc\types.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="script.h" />
     <ClInclude Include="..\..\inc\main.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="Globals.h" />
+    <ClInclude Include="script.h" />
+    <ClInclude Include="UtilitiesChecks.h" />
+    <ClInclude Include="UtilitiesConfig.h" />
+    <ClInclude Include="UtilitiesGets.h" />
+    <ClInclude Include="UtilitiesLogger.h" />
+    <ClInclude Include="UtilitiesRandom.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="include">
