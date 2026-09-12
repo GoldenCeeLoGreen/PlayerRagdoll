@@ -131,6 +131,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunityPistol) {
         if (CheckWeaponIsPistol(hitPacket.equippedWeapon))
         {
@@ -138,6 +139,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunityRepeater) {
         if (CheckWeaponIsRepeater(hitPacket.equippedWeapon))
         {
@@ -145,6 +147,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunityRifle) {
         if (CheckWeaponIsRifle(hitPacket.equippedWeapon))
         {
@@ -152,6 +155,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunityShotgun) {
         if (CheckWeaponIsShotgun(hitPacket.equippedWeapon))
         {
@@ -159,6 +163,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunitySniper) {
         if (CheckWeaponIsSniper(hitPacket.equippedWeapon))
         {
@@ -166,6 +171,7 @@ bool CheckImmuneWeapon()
 			return true;    
         }
     }
+
     if (settingImmunityBow) {
         if (CheckWeaponIsBow(hitPacket.equippedWeapon))
         {
@@ -173,6 +179,7 @@ bool CheckImmuneWeapon()
             return true;
         }
     }
+
     if (settingImmunityMelee) {
         if (CheckWeaponIsMelee(hitPacket.equippedWeapon))
         {
@@ -181,6 +188,7 @@ bool CheckImmuneWeapon()
         }
     }
 
+	Log("Weapon is not immune to effects");
     return false;
 }
 
@@ -268,7 +276,7 @@ bool DetermineShouldClearHitPacket()
     if (CheckImmuneWeapon())
     {
         Log("Weapon is immune to force effect");
-        return false;
+        return true;
     }
 
     if (!hitPacket.rollPassed)
@@ -330,6 +338,7 @@ void UpdateHitSystem()
 
         hitPacket.equippedWeapon = GetPedWeapon(player);
         Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
+		Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
 
 		hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
 		Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
@@ -360,7 +369,7 @@ void UpdateHitSystem()
         Log("Event forceIntensity Logged: " + ToString(hitPacket.forceIntensity));
 
         int roll = Random1To100();
-        hitPacket.rollPassed = roll > settingChanceToApplyEffects;
+        hitPacket.rollPassed = roll <= settingChanceToApplyEffects;
 		Log("Event roll Logged: " + ToString(roll) + " Roll Passed: " + ToString(hitPacket.rollPassed));
 
 		hitPacket.bulkInfoAdded = true;

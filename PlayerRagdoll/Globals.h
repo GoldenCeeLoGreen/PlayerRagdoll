@@ -104,67 +104,67 @@ void SetWeaponImmunitySettings()
 {
     settingImmunityRevolver =
         ConvertIntToBool(
-            GetIniInt("immunityRevolver")
+            GetIniInt("settingImmunityRevolver")
         );
 
     settingImmunityPistol =
         ConvertIntToBool(
-            GetIniInt("immunityPistol")
+            GetIniInt("settingImmunityPistol")
         );
 
     settingImmunityRepeater =
         ConvertIntToBool(
-            GetIniInt("immunityRepeater")
+            GetIniInt("settingImmunityRepeater")
         );
 
     settingImmunityRifle =
         ConvertIntToBool(
-            GetIniInt("immunityRifle")
+            GetIniInt("settingImmunityRifle")
         );
 
     settingImmunityShotgun =
         ConvertIntToBool(
-            GetIniInt("immunityShotgun")
+            GetIniInt("settingImmunityShotgun")
         );
 
     settingImmunitySniper =
         ConvertIntToBool(
-            GetIniInt("immunitySniper")
+            GetIniInt("settingImmunitySniper")
         );
 
     settingImmunityBow =
         ConvertIntToBool(
-            GetIniInt("immunityBow")
+            GetIniInt("settingImmunityBow")
         );
 
     settingImmunityMelee =
         ConvertIntToBool(
-            GetIniInt("immunityMelee")
+            GetIniInt("settingImmunityMelee")
         );
 
     settingImmunityLasso =
         ConvertIntToBool(
-            GetIniInt("immunityLasso")
+            GetIniInt("settingImmunityLasso")
         );
 
     settingImmunityBinoculars =
         ConvertIntToBool(
-            GetIniInt("immunityBinoculars")
+            GetIniInt("settingImmunityBinoculars")
         );
 
     settingImmunityLantern =
         ConvertIntToBool(
-            GetIniInt("immunityLantern")
+            GetIniInt("settingImmunityLantern")
         );
 
     settingImmunityTorch =
         ConvertIntToBool(
-            GetIniInt("immunityTorch")
+            GetIniInt("settingImmunityTorch")
         );
 
     settingImmunityKnife =
         ConvertIntToBool(
-            GetIniInt("immunityKnife")
+            GetIniInt("settingImmunityKnife")
         );
 }
 
