@@ -17,13 +17,15 @@ inline void InitializeLogFile()
 template <typename T>
 inline void Log(const T& value)
 {
-    static std::ofstream file(
-        ".\\PlayerRagdoll.log",
-        std::ios::app
-    );
-
-    file << value << std::endl;
-    file.flush();
+    if (settingDebugLogger)
+    {
+        std::ofstream file(
+            ".\\PlayerRagdoll.log",
+            std::ios::app
+        );
+        file << value << std::endl;
+		file.flush();
+    }
 }
 
 template <typename T>

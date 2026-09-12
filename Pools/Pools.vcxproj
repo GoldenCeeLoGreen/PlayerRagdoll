@@ -7,12 +7,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="script.cpp" />
     <ClInclude Include="Globals.h" />
+    <ClInclude Include="script.h" />
     <ClInclude Include="UtilitiesChecks.h" />
     <ClInclude Include="UtilitiesConfig.h" />
     <ClInclude Include="UtilitiesLogger.h" />
     <ClCompile Include="main.cpp" />
-    <ClInclude Include="script.h" />
     <ClInclude Include="UtilitiesGets.h" />
     <ClInclude Include="UtilitiesRandom.h" />
   </ItemGroup>

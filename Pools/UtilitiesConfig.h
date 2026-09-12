@@ -2,12 +2,12 @@
 
 #include "../../inc/main.h"
 
-inline bool ConvertIntToBool(int input)
+bool ConvertIntToBool(int input)
 {
     return input == 1;
 }
 
-inline int GetIniInt(const char* key)
+int GetIniInt(const char* key)
 {
     return GetPrivateProfileIntA(
         "settings",
@@ -17,7 +17,7 @@ inline int GetIniInt(const char* key)
     );
 }
 
-inline float GetIniFloat(const char* key)
+float GetIniFloat(const char* key)
 {
     char buffer[64]{};
 

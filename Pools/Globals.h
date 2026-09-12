@@ -2,16 +2,31 @@
 
 #include "UtilitiesConfig.h"
 #include "../../inc/natives.h"
+#include "UtilitiesLogger.h"
+
+struct EventEntityDamaged
+{
+    alignas(8) Entity target;
+    alignas(8) Entity source;
+    alignas(8) Hash weapon;
+    alignas(8) Hash ammo;
+    alignas(8) float damage;
+    alignas(8) int unknown;
+    alignas(8) float x;
+    alignas(8) float y;
+    alignas(8) float z;
+};
 
 struct HitPacket
 {
     bool valid = false;
+	bool validEvent = false;
 
-    int* event{};
+    EventEntityDamaged event{};
 
-    int damage = 0;
-    int startHealth = 0;
-    int endHealth = 0;
+    float damage = 0;
+    float fullHealth = 0;
+    float startHealth = 0;
 
     float damagePercentFullHealth = 0.0f;
     float damagePercentCurrentHealth = 0.0f;
@@ -22,135 +37,194 @@ struct HitPacket
     Hash attackerWeapon;
     Vector3 attackerDirection;
 
+    bool bulkInfoAdded = false;
+
     int bone = -1;
     bool hasBone = false;
 
     int ragdollType = -1;
     int ragdollDuration = 0;
     float forceIntensity = 0.0f;
-};
 
-const Hash hash_EVENT_ENTITY_DAMAGED =
-GAMEPLAY::GET_HASH_KEY("EVENT_ENTITY_DAMAGED");
+	bool ragdollApplied = false;
+	bool forceApplied = false;
+	bool rollPassed = false;
+};
 
 Ped player = 0;
 int lastHealth = 0;
 HitPacket hitPacket;
 
-int captureFramesForBoneProcessing = 0;
+//vars
+int framesToAttemptBoneProcessing = 0;
 int framesToAttemptForceEffect = 0;
 
-int ragdollCooldownSetting = 0;
-int forceEffectCooldownSetting = 0;
+int cooldownRagdoll = 0;
+int cooldownForceEffect = 0;
 
-int ragdollCooldown = 0;
-int forceEffectCooldown = 0;
+//config vars
+bool settingDebugLogger = false;
 
-int radollDurationForType0 = 0;
-int radollDurationForType1 = 0;
-int radollDurationForType2 = 0;
-int radollDurationForType3 = 0;
+float settingCooldownRagdoll = 0;
+float settingCooldownForceEffect = 0;
 
-float healthToCauseType0 = 0.0f;
-float healthToCauseType1 = 0.0f;
-float healthToCauseType2 = 0.0f;
-float healthToCauseType3 = 0.0f;
+bool settingApplyRagdollIfRagdolled = false;
 
-float forceBaseToApplyToRagdoll = 0.0f;
+float settingHealthPercentToCauseType0 = 0.0f;
+float settingHealthPercentToCauseType1 = 0.0f;
+float settingHealthPercentToCauseType2 = 0.0f;
+float settingHealthPercentToCauseType3 = 0.0f;
 
-int chanceToRegisterHitSetting = 100;
+int settingRadollDurationForType0 = 0;
+int settingRadollDurationForType1 = 0;
+int settingRadollDurationForType2 = 0;
+int settingRadollDurationForType3 = 0;
 
-bool useTotalHealthForPercentSetting = false;
+float settingForceBaseToApplyToRagdoll = 0.0f;
 
-bool immunityRevolver = false;
-bool immunityPistol = false;
-bool immunityRepeater = false;
-bool immunityRifle = false;
-bool immunityShotgun = false;
-bool immunitySniper = false;
-bool immunityBow = false;
-bool immunityMelee = false;
+bool settingUseTotalHealthForPercentSetting = false;
 
-inline void SetConfigs()
+int settingChanceToApplyEffects = 100;
+
+bool settingImmunityRevolver = false;
+bool settingImmunityPistol = false;
+bool settingImmunityRepeater = false;
+bool settingImmunityRifle = false;
+bool settingImmunityShotgun = false;
+bool settingImmunitySniper = false;
+bool settingImmunityBow = false;
+bool settingImmunityMelee = false;
+bool settingImmunityLasso = false;
+bool settingImmunityBinoculars = false;
+bool settingImmunityLantern = false;
+bool settingImmunityTorch = false;
+bool settingImmunityKnife = false;
+
+void SetWeaponImmunitySettings()
 {
-    ragdollCooldownSetting =
-        static_cast<int>(GetIniFloat("ragdollCooldown") * 1000);
-
-    forceEffectCooldownSetting =
-        static_cast<int>(GetIniFloat("forceEffectCooldown") * 1000);
-
-    radollDurationForType0 =
-        static_cast<int>(GetIniFloat("radollDurationForType0") * 1000);
-
-    radollDurationForType1 =
-        static_cast<int>(GetIniFloat("radollDurationForType1") * 1000);
-
-    radollDurationForType2 =
-        static_cast<int>(GetIniFloat("radollDurationForType2") * 1000);
-
-    radollDurationForType3 =
-        static_cast<int>(GetIniFloat("radollDurationForType3") * 1000);
-
-    healthToCauseType0 =
-        GetIniFloat("healthToCauseType0") / 100.0f;
-
-    healthToCauseType1 =
-        GetIniFloat("healthToCauseType1") / 100.0f;
-
-    healthToCauseType2 =
-        GetIniFloat("healthToCauseType2") / 100.0f;
-
-    healthToCauseType3 =
-        GetIniFloat("healthToCauseType3") / 100.0f;
-
-    forceBaseToApplyToRagdoll =
-        GetIniFloat("forceBaseToApplyToRagdoll");
-
-    chanceToRegisterHitSetting =
-        static_cast<int>(GetIniFloat("chanceToRegisterHit"));
-
-    useTotalHealthForPercentSetting =
-        ConvertIntToBool(
-            GetIniInt("useTotalHealthForPercent")
-        );
-
-    immunityRevolver =
+    settingImmunityRevolver =
         ConvertIntToBool(
             GetIniInt("immunityRevolver")
         );
 
-    immunityPistol =
+    settingImmunityPistol =
         ConvertIntToBool(
             GetIniInt("immunityPistol")
         );
 
-    immunityRepeater =
+    settingImmunityRepeater =
         ConvertIntToBool(
             GetIniInt("immunityRepeater")
         );
 
-    immunityRifle =
+    settingImmunityRifle =
         ConvertIntToBool(
             GetIniInt("immunityRifle")
         );
 
-    immunityShotgun =
+    settingImmunityShotgun =
         ConvertIntToBool(
             GetIniInt("immunityShotgun")
         );
 
-    immunitySniper =
+    settingImmunitySniper =
         ConvertIntToBool(
             GetIniInt("immunitySniper")
         );
 
-    immunityBow =
+    settingImmunityBow =
         ConvertIntToBool(
             GetIniInt("immunityBow")
         );
 
-    immunityMelee =
+    settingImmunityMelee =
         ConvertIntToBool(
             GetIniInt("immunityMelee")
         );
+
+    settingImmunityLasso =
+        ConvertIntToBool(
+            GetIniInt("immunityLasso")
+        );
+
+    settingImmunityBinoculars =
+        ConvertIntToBool(
+            GetIniInt("immunityBinoculars")
+        );
+
+    settingImmunityLantern =
+        ConvertIntToBool(
+            GetIniInt("immunityLantern")
+        );
+
+    settingImmunityTorch =
+        ConvertIntToBool(
+            GetIniInt("immunityTorch")
+        );
+
+    settingImmunityKnife =
+        ConvertIntToBool(
+            GetIniInt("immunityKnife")
+        );
+}
+
+void SetRagdollSettings()
+{
+    settingCooldownRagdoll =
+        GetIniFloat("cooldownRagdoll") * 1000;
+
+    settingCooldownForceEffect =
+        GetIniFloat("cooldownForceEffect") * 1000;
+
+    settingApplyRagdollIfRagdolled = 
+        ConvertIntToBool(
+            GetIniInt("settingApplyRagdollIfRagdolled")
+		);  
+
+    settingRadollDurationForType0 =
+        GetIniFloat("settingRadollDurationForType0") * 1000;
+
+    settingRadollDurationForType1 =
+        GetIniFloat("settingRadollDurationForType1") * 1000;
+
+    settingRadollDurationForType2 =
+        GetIniFloat("settingRadollDurationForType2") * 1000;
+
+    settingRadollDurationForType3 =
+        GetIniFloat("settingRadollDurationForType3") * 1000;
+
+    settingHealthPercentToCauseType0 =
+        GetIniFloat("settingHealthPercentToCauseType0") / 100.0f;
+
+    settingHealthPercentToCauseType1 =
+        GetIniFloat("settingHealthPercentToCauseType1") / 100.0f;
+
+    settingHealthPercentToCauseType2 =
+        GetIniFloat("settingHealthPercentToCauseType2") / 100.0f;
+
+    settingHealthPercentToCauseType3 =
+        GetIniFloat("settingHealthPercentToCauseType3") / 100.0f;
+
+    settingForceBaseToApplyToRagdoll =
+        GetIniFloat("settingForceBaseToApplyToRagdoll");
+}
+
+void SetConfigs()
+{
+    settingDebugLogger = 
+        ConvertIntToBool(
+            GetIniInt("settingDebugLogger")
+	    );
+
+    settingChanceToApplyEffects =
+        GetIniFloat("settingChanceToApplyEffects");
+
+    settingUseTotalHealthForPercentSetting =
+        ConvertIntToBool(
+            GetIniInt("settingUseTotalHealthForPercentSetting")
+        );
+
+    SetRagdollSettings();
+
+    SetWeaponImmunitySettings();
 }

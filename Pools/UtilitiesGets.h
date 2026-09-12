@@ -2,7 +2,7 @@
 
 #include "../../inc/natives.h"
 
-inline Hash GetPedWeapon(Ped ped)
+Hash GetPedWeapon(Ped ped)
 {
     Hash weaponHash = 0;
 
@@ -17,12 +17,12 @@ inline Hash GetPedWeapon(Ped ped)
     return weaponHash;
 }
 
-inline Hash GetWeaponGroup(Hash weaponHash)
+Hash GetWeaponGroup(Hash weaponHash)
 {
     return WEAPON::GET_WEAPONTYPE_GROUP(weaponHash);
 }
 
-inline Vector3 GetPedLocation(Ped ped)
+Vector3 GetPedLocation(Ped ped)
 {
     return ENTITY::GET_ENTITY_COORDS(
         ped,
