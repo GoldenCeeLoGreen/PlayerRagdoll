@@ -51,11 +51,11 @@ struct HitPacket
 	bool rollPassed = false;
 };
 
+//vars
 Ped player = 0;
 int lastHealth = 0;
 HitPacket hitPacket;
 
-//vars
 int framesToAttemptBoneProcessing = 0;
 int framesToAttemptForceEffect = 0;
 
