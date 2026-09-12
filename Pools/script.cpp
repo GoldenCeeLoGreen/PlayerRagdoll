@@ -115,7 +115,7 @@ float GetDamagePercentFromHitPacket()
         return hitPacket.damagePercentCurrentHealth;
 }
 
-int DetermineRagdollType(Ped player)
+int DetermineRagdollType()
 {
     int reaction = GetReactionFromDamage(GetDamagePercentFromHitPacket());
     return reaction;
@@ -347,7 +347,7 @@ void UpdateHitSystem()
         hitPacket.damagePercentCurrentHealth = hitPacket.damage / hitPacket.startHealth;
         Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
 
-		hitPacket.ragdollType = DetermineRagdollType(player);
+		hitPacket.ragdollType = DetermineRagdollType();
 		Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
 		hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
 		Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
