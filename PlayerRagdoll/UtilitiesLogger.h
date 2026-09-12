@@ -4,7 +4,7 @@
 #include <fstream>
 #include <sstream>
 
-inline void InitializeLogFile()
+void InitializeLogFile()
 {
     std::ofstream file(
         ".\\PlayerRagdoll.log",
@@ -15,7 +15,7 @@ inline void InitializeLogFile()
 }
 
 template <typename T>
-inline void Log(const T& value)
+void Log(const T& value)
 {
     if (settingDebugLogger)
     {
@@ -29,7 +29,7 @@ inline void Log(const T& value)
 }
 
 template <typename T>
-inline std::string ToString(const T& value)
+std::string ToString(const T& value)
 {
     std::ostringstream oss;
     oss << value;

@@ -123,6 +123,7 @@ int DetermineRagdollType()
 
 bool CheckImmuneWeapon()
 {
+	Log("Checking for immune weapon");
     if (settingImmunityRevolver) {
         if (CheckWeaponIsRevolver(hitPacket.equippedWeapon))
         {
@@ -191,12 +192,6 @@ bool DetermineShouldApplyRagdoll()
         return false;
     }
 
-    if (CheckImmuneWeapon())
-    {
-        Log("Weapon is immune to ragdoll effect");
-        return false;
-    }
-
     if (settingApplyRagdollIfRagdolled)
     {
         if (CheckIsPedRagdolled(player))
@@ -218,12 +213,6 @@ bool DetermineShouldApplyRagdoll()
 
 bool DetermineShouldForceEffect()
 {
-    if(CheckImmuneWeapon())
-    {
-        Log("Weapon is immune to force effect");
-        return false;
-	}
-
     if (!hitPacket.ragdollApplied)
     {
         Log("Ragdoll has not been applied for this hit event");
@@ -276,6 +265,12 @@ float DetermineForceIntensity()
 
 bool DetermineShouldClearHitPacket()
 {
+    if (CheckImmuneWeapon())
+    {
+        Log("Weapon is immune to force effect");
+        return false;
+    }
+
     if (!hitPacket.rollPassed)
     {
         Log("Roll did not pass, clearing hit packet");
