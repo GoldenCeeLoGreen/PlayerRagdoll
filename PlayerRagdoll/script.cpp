@@ -100,8 +100,8 @@ void ApplyForce(Ped ped, Vector3 direction, float intensity, int bone)
         0.0f, 0.0f, 0.0f,
         bone,
         true,
-        true,
-        true,
+        false,
+        false,
         false,
         false
     );
@@ -275,7 +275,7 @@ bool DetermineShouldClearHitPacket()
 {
     if (CheckImmuneWeapon())
     {
-        Log("Weapon is immune to force effect");
+        Log("Weapon is immune");
         return true;
     }
 
