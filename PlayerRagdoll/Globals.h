@@ -37,11 +37,6 @@ struct HitPacket
     Hash attackerWeapon;
     Vector3 attackerDirection;
 
-    bool bulkInfoAdded = false;
-
-    int bone = -1;
-    bool hasBone = false;
-
     int ragdollType = -1;
     int ragdollDuration = 0;
     float forceIntensity = 0.0f;
@@ -99,6 +94,9 @@ bool settingImmunityBinoculars = false;
 bool settingImmunityLantern = false;
 bool settingImmunityTorch = false;
 bool settingImmunityKnife = false;
+
+bool settingImmunityHorse = false;
+bool settingImmunityVehicle = false;
 
 void SetWeaponImmunitySettings()
 {
@@ -223,6 +221,16 @@ void SetConfigs()
         ConvertIntToBool(
             GetIniInt("settingUseTotalHealthForPercentSetting")
         );
+
+    settingImmunityHorse =
+        ConvertIntToBool(
+            GetIniInt("settingImmunityHorse")
+		);
+
+    settingImmunityVehicle =
+        ConvertIntToBool(
+			GetIniInt("settingImmunityVehicle")
+		);
 
     SetRagdollSettings();
 

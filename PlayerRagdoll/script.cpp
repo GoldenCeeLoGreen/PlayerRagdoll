@@ -17,20 +17,6 @@
 //#include <fstream>
 //#include <sstream>
 
-bool CaptureBoneData()
-{
-    int bone;
-    Log("Collecting Bone Data");
-    if (PED::GET_PED_LAST_DAMAGE_BONE(player, &bone))
-    {
-        Log("Bone Data Collected: " + ToString(bone));
-        hitPacket.bone = bone;
-        hitPacket.hasBone = true;
-        return hitPacket.hasBone;
-    }
-    return false;
-}
-
 void ClearHitPacket()
 {
     Log("Clearing Hit Packet");
@@ -88,23 +74,20 @@ void ApplyRagdoll(Ped player, int duration, int ragdolltype)
     PED::SET_PED_TO_RAGDOLL(player, duration, duration, ragdolltype, true, true, false);
 }
 
-void ApplyForce(Ped ped, Vector3 direction, float intensity, int bone)
+void ApplyForce(Ped ped, Vector3 direction, float intensity)
 {
-    Log("Force applied");
-    ENTITY::APPLY_FORCE_TO_ENTITY(
+	Log("Force applied to center of mass with intensity " + ToString(intensity));
+    ENTITY::APPLY_FORCE_TO_ENTITY_CENTER_OF_MASS(
         ped,
         1,
         direction.x * intensity,
         direction.y * intensity,
         direction.z * intensity,
-        0.0f, 0.0f, 0.0f,
-        bone,
+        0,
         true,
         false,
-        false,
-        false,
         false
-    );
+	);
 }
 
 float GetDamagePercentFromHitPacket()
@@ -121,7 +104,7 @@ int DetermineRagdollType()
     return reaction;
 }
 
-bool CheckImmuneWeapon()
+bool CheckImmunity()
 {
 	Log("Checking for immune weapon");
     if (settingImmunityRevolver) {
@@ -188,7 +171,23 @@ bool CheckImmuneWeapon()
         }
     }
 
-	Log("Weapon is not immune to effects");
+    if (settingImmunityHorse) {
+        if (CheckPedIsOnHorse(player))
+        {
+            Log("Horse is immune to effects");
+            return true;
+        }
+	}
+
+    if (settingImmunityVehicle) {
+        if (CheckPedIsOnVehicle(player))
+        {
+            Log("Vehicle is immune to effects");
+            return true;
+        }
+	}
+
+	Log("No immunities found");
     return false;
 }
 
@@ -273,9 +272,9 @@ float DetermineForceIntensity()
 
 bool DetermineShouldClearHitPacket()
 {
-    if (CheckImmuneWeapon())
+    if (CheckImmunity())
     {
-        Log("Weapon is immune");
+        Log("Immunity Found");
         return true;
     }
 
@@ -323,7 +322,7 @@ void ApplyHitReaction()
     Log("Force Cooldown Duration " + ToString(cooldownForceEffect));
     if (DetermineShouldForceEffect())
     {
-        ApplyForce(player, hitPacket.attackerDirection, hitPacket.forceIntensity, hitPacket.bone);
+        ApplyForce(player, hitPacket.attackerDirection, hitPacket.forceIntensity);
         hitPacket.forceApplied = true;
         cooldownForceEffect = settingCooldownForceEffect;
     }
@@ -332,64 +331,44 @@ void ApplyHitReaction()
 void UpdateHitSystem()
 {
 	Log("Updating Hit System");
-    if(!hitPacket.bulkInfoAdded)
-    {
-        framesToAttemptBoneProcessing = 10;
 
-        hitPacket.equippedWeapon = GetPedWeapon(player);
-        Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
-		Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
+    hitPacket.equippedWeapon = GetPedWeapon(player);
+    Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
+	Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
 
-		hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
-		Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
-		hitPacket.damage = hitPacket.event.damage;
-		Log("Event Damage Logged: " + ToString(hitPacket.damage));
-		hitPacket.startHealth = lastHealth;
-        Log("Event startHealth Logged: " + ToString(hitPacket.startHealth));
-        hitPacket.damagePercentFullHealth = hitPacket.damage / hitPacket.fullHealth;
-        Log("Event damagePercentFullHealth Logged: " + ToString(hitPacket.damagePercentFullHealth));
-        hitPacket.damagePercentCurrentHealth = hitPacket.damage / hitPacket.startHealth;
-        Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
+	hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
+	Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
+	hitPacket.damage = hitPacket.event.damage;
+	Log("Event Damage Logged: " + ToString(hitPacket.damage));
+	hitPacket.startHealth = lastHealth;
+    Log("Event startHealth Logged: " + ToString(hitPacket.startHealth));
+    hitPacket.damagePercentFullHealth = hitPacket.damage / hitPacket.fullHealth;
+    Log("Event damagePercentFullHealth Logged: " + ToString(hitPacket.damagePercentFullHealth));
+    hitPacket.damagePercentCurrentHealth = hitPacket.damage / hitPacket.startHealth;
+    Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
 
-		hitPacket.ragdollType = DetermineRagdollType();
-		Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
-		hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
-		Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
+	hitPacket.ragdollType = DetermineRagdollType();
+	Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
+	hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
+	Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
 
-        hitPacket.attacker = hitPacket.event.source;
-		Log("Event attacker Logged: " + ToString(hitPacket.attacker));
-        //Should I confirm an attacker exists?
-		hitPacket.attackerDirection = ComputeDirection(player, hitPacket.attacker);
-		Log("Event direction Logged: " + ToString(hitPacket.attackerDirection.x) + ", " + ToString(hitPacket.attackerDirection.y) + ", " + ToString(hitPacket.attackerDirection.z));
-		hitPacket.attackerWeapon = GetPedWeapon(hitPacket.attacker);
-		Log("Event attackerWeapon Logged: " + ToString(hitPacket.attackerWeapon));
+    hitPacket.attacker = hitPacket.event.source;
+	Log("Event attacker Logged: " + ToString(hitPacket.attacker));
+    //Should I confirm an attacker exists?
+	hitPacket.attackerDirection = ComputeDirection(player, hitPacket.attacker);
+	Log("Event direction Logged: " + ToString(hitPacket.attackerDirection.x) + ", " + ToString(hitPacket.attackerDirection.y) + ", " + ToString(hitPacket.attackerDirection.z));
+	hitPacket.attackerWeapon = GetPedWeapon(hitPacket.attacker);
+	Log("Event attackerWeapon Logged: " + ToString(hitPacket.attackerWeapon));
 
-        // Make determine forceIntensity that includes a bunch of config
-        hitPacket.forceIntensity = DetermineForceIntensity();
-        Log("Event forceIntensity Logged: " + ToString(hitPacket.forceIntensity));
+    // Make determine forceIntensity that includes a bunch of config
+    hitPacket.forceIntensity = DetermineForceIntensity();
+    Log("Event forceIntensity Logged: " + ToString(hitPacket.forceIntensity));
 
-        int roll = Random1To100();
-        hitPacket.rollPassed = roll <= settingChanceToApplyEffects;
-		Log("Event roll Logged: " + ToString(roll) + " Roll Passed: " + ToString(hitPacket.rollPassed));
-
-		hitPacket.bulkInfoAdded = true;
-	}
-
-    if (framesToAttemptBoneProcessing > 0)
-    {
-		Log("Collecting Bone Data");
-        if (CaptureBoneData())
-        {
-            Log("Hitpacketvalid");
-            hitPacket.valid = true;
-            framesToAttemptBoneProcessing = 0;
-            return;
-        }
-    }
-    else
-    {
-        ClearHitPacket();
-	}
+    int roll = Random1To100();
+    hitPacket.rollPassed = roll <= settingChanceToApplyEffects;
+	Log("Event roll Logged: " + ToString(roll) + " Roll Passed: " + ToString(hitPacket.rollPassed));
+        
+    hitPacket.valid = true;
 }
 
 void GetDamageEventData()
@@ -434,7 +413,6 @@ void DecrementCooldowns()
     if (cooldownRagdoll > 0) { cooldownRagdoll--; }
     if (cooldownForceEffect > 0) { cooldownForceEffect--; }
     if (framesToAttemptForceEffect > 0) { framesToAttemptForceEffect--; }
-	if (framesToAttemptBoneProcessing > 0) { framesToAttemptBoneProcessing--; }
 }
 
 void mainLoop()

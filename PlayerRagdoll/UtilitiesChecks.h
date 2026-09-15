@@ -83,3 +83,13 @@ bool CheckValidPed(Ped ped)
         return false;
     return true;
 }
+
+bool CheckPedIsOnHorse(Ped ped)
+{
+    return PED::IS_PED_ON_MOUNT(ped);
+}
+
+bool CheckPedIsOnVehicle(Ped ped)
+{
+    return PED::IS_PED_IN_ANY_VEHICLE(ped, false);
+}
