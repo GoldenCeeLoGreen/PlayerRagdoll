@@ -1,21 +1,11 @@
-﻿#include "script.h"
-
-#include "Globals.h"
-
-#include "UtilitiesChecks.h"
-#include "UtilitiesConfig.h"
-#include "UtilitiesGets.h"
-#include "UtilitiesLogger.h"
-#include "UtilitiesRandom.h"
-
-#include <iomanip>
-#include <cstdint>
-
-//#include "..\..\inc\natives.h"
+﻿#include "Globals.h"
 
 #include <cmath>
-//#include <fstream>
-//#include <sstream>
+
+using namespace GETSPEDINFO;
+
+// How many frames after the ragdoll we keep trying to apply the force effect
+constexpr int FRAMES_TO_ATTEMPT_FORCE_EFFECT = 30;
 
 void ClearHitPacket()
 {
@@ -34,22 +24,23 @@ Vector3 ComputeDirection(Ped player, Ped attacker)
     dir.y = posPlayer.y - posAttacker.y;
     dir.z = posPlayer.z - posAttacker.z;
 
-	Log("Player Position: " + ToString(posPlayer.x) + ", " + ToString(posPlayer.y) + ", " + ToString(posPlayer.z));
-	Log("Attacker Position: " + ToString(posAttacker.x) + ", " + ToString(posAttacker.y) + ", " + ToString(posAttacker.z));
+    Log("Player Position: " + ToString(posPlayer.x) + ", " + ToString(posPlayer.y) + ", " + ToString(posPlayer.z));
+    Log("Attacker Position: " + ToString(posAttacker.x) + ", " + ToString(posAttacker.y) + ", " + ToString(posAttacker.z));
 
     float len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
 
-	Log("Direction Vector: " + ToString(dir.x) + ", " + ToString(dir.y) + ", " + ToString(dir.z));
-	Log("Direction Length: " + ToString(len));
+    Log("Direction Vector: " + ToString(dir.x) + ", " + ToString(dir.y) + ", " + ToString(dir.z));
+    Log("Direction Length: " + ToString(len));
 
     if (len == 0.0f)
-		len = 1.0f; // Prevent division by zero prolly a bug
+        len = 1.0f; // Prevent division by zero prolly a bug
 
+    // dir points attacker -> player, so the force pushes the player away from the attacker
     dir.x /= len;
     dir.y /= len;
     dir.z /= len;
 
-	Log("Normalized Direction Vector: " + ToString(dir.x) + ", " + ToString(dir.y) + ", " + ToString(dir.z));
+    Log("Normalized Direction Vector: " + ToString(dir.x) + ", " + ToString(dir.y) + ", " + ToString(dir.z));
 
     return dir;
 }
@@ -70,13 +61,13 @@ int GetReactionFromDamage(float percent)
 
 void ApplyRagdoll(Ped player, int duration, int ragdolltype)
 {
-	Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString(ragdolltype));
-    PED::SET_PED_TO_RAGDOLL(player, duration, duration, ragdolltype, true, true, false);
+    Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString(ragdolltype));
+    PED::SET_PED_TO_RAGDOLL(player, duration, duration, ragdolltype, true, true, nullptr);
 }
 
 void ApplyForce(Ped ped, Vector3 direction, float intensity)
 {
-	Log("Force applied to center of mass with intensity " + ToString(intensity));
+    Log("Force applied to center of mass with intensity " + ToString(intensity));
     ENTITY::APPLY_FORCE_TO_ENTITY_CENTER_OF_MASS(
         ped,
         1,
@@ -84,10 +75,10 @@ void ApplyForce(Ped ped, Vector3 direction, float intensity)
         direction.y * intensity,
         direction.z * intensity,
         0,
-        true,
+        false, // world-space direction, not relative to the ped's orientation
         false,
         false
-	);
+    );
 }
 
 float GetDamagePercentFromHitPacket()
@@ -100,94 +91,41 @@ float GetDamagePercentFromHitPacket()
 
 int DetermineRagdollType()
 {
-    int reaction = GetReactionFromDamage(GetDamagePercentFromHitPacket());
-    return reaction;
+    return GetReactionFromDamage(GetDamagePercentFromHitPacket());
+}
+
+static bool Immune(const char* reason)
+{
+    Log(std::string(reason) + " is immune to effects");
+    return true;
 }
 
 bool CheckImmunity()
 {
-	Log("Checking for immune weapon");
-    if (settingImmunityRevolver) {
-        if (CheckWeaponIsRevolver(hitPacket.equippedWeapon))
-        {
-            Log("Revolver is immune to effects");
-            return true;
-        }
-    }
+    Log("Checking for immune weapon");
 
-    if (settingImmunityPistol) {
-        if (CheckWeaponIsPistol(hitPacket.equippedWeapon))
-        {
-            Log("Pistol is immune to effects");
-            return true;
-        }
-    }
+    const Hash weapon = hitPacket.equippedWeapon;
 
-    if (settingImmunityRepeater) {
-        if (CheckWeaponIsRepeater(hitPacket.equippedWeapon))
-        {
-            Log("Repeater is immune to effects");
-            return true;
-        }
-    }
+    if (settingImmunityRevolver && CheckWeaponIsRevolver(weapon)) return Immune("Revolver");
+    if (settingImmunityPistol && CheckWeaponIsPistol(weapon)) return Immune("Pistol");
+    if (settingImmunityRepeater && CheckWeaponIsRepeater(weapon)) return Immune("Repeater");
+    if (settingImmunityRifle && CheckWeaponIsRifle(weapon)) return Immune("Rifle");
+    if (settingImmunityShotgun && CheckWeaponIsShotgun(weapon)) return Immune("Shotgun");
+    if (settingImmunitySniper && CheckWeaponIsSniper(weapon)) return Immune("Sniper");
+    if (settingImmunityBow && CheckWeaponIsBow(weapon)) return Immune("Bow");
+    if (settingImmunityMelee && CheckWeaponIsMelee(weapon)) return Immune("Melee");
+    if (settingImmunityLasso && CheckWeaponIsLasso(weapon)) return Immune("Lasso");
+    if (settingImmunityBinoculars && CheckWeaponIsBinoculars(weapon)) return Immune("Binoculars");
+    if (settingImmunityLantern && CheckWeaponIsLantern(weapon)) return Immune("Lantern");
+    if (settingImmunityTorch && CheckWeaponIsTorch(weapon)) return Immune("Torch");
+    if (settingImmunityKnife && CheckWeaponIsKnife(weapon)) return Immune("Knife");
 
-    if (settingImmunityRifle) {
-        if (CheckWeaponIsRifle(hitPacket.equippedWeapon))
-        {
-            Log("Rifle is immune to effects");
-            return true;
-        }
-    }
+    if (settingImmunityHorse && CheckPedIsOnHorse(player)) return Immune("Horse");
+    if (settingImmunityVehicle && CheckPedIsOnVehicle(player)) return Immune("Vehicle");
+    if (settingImmunityGrapple && PED::GET_PED_IS_GRAPPLING(player)) return Immune("Grapple");
+    if (settingImmunityMeleeCombat && PED::IS_PED_IN_MELEE_COMBAT(player)) return Immune("Melee Combat");
 
-    if (settingImmunityShotgun) {
-        if (CheckWeaponIsShotgun(hitPacket.equippedWeapon))
-        {
-            Log("Shotgun is immune to effects");
-            return true;
-        }
-    }
-
-    if (settingImmunitySniper) {
-        if (CheckWeaponIsSniper(hitPacket.equippedWeapon))
-        {
-            Log("Sniper is immune to effects");
-			return true;    
-        }
-    }
-
-    if (settingImmunityBow) {
-        if (CheckWeaponIsBow(hitPacket.equippedWeapon))
-        {
-            Log("Bow is immune to effects");
-            return true;
-        }
-    }
-
-    if (settingImmunityMelee) {
-        if (CheckWeaponIsMelee(hitPacket.equippedWeapon))
-        {
-            Log("Melee is immune to effects");
-            return true;
-        }
-    }
-
-    if (settingImmunityHorse) {
-        if (CheckPedIsOnHorse(player))
-        {
-            Log("Horse is immune to effects");
-            return true;
-        }
-	}
-
-    if (settingImmunityVehicle) {
-        if (CheckPedIsOnVehicle(player))
-        {
-            Log("Vehicle is immune to effects");
-            return true;
-        }
-	}
-
-	Log("No immunities found");
+    Log("No immunities found");
     return false;
 }
 
@@ -199,22 +137,13 @@ bool DetermineShouldApplyRagdoll()
         return false;
     }
 
-    if (settingApplyRagdollIfRagdolled)
+    if (timeLastRagdoll != 0 && !GETSTIME::HasTimePassed(timeLastRagdoll, settingCooldownRagdoll))
     {
-        if (CheckIsPedRagdolled(player))
-        {
-            Log("Player is already ragdolled, and setting is preventing it being reapplied");
-            return false;
-        }
+        Log("Ragdoll is on cooldown for " + ToString(settingCooldownRagdoll - GETSTIME::GetTimeSince(timeLastRagdoll)) + " more ms");
+        return false;
     }
 
-    if(cooldownRagdoll > 0)
-    {
-        Log("Ragdoll is on cooldown for " + ToString(cooldownRagdoll) + " more frames");
-        return false;
-	}
-
-	Log("Ragdoll should be applied");
+    Log("Ragdoll should be applied");
     return true;
 }
 
@@ -226,19 +155,19 @@ bool DetermineShouldForceEffect()
         return false;
     }
 
-    if (cooldownForceEffect > 0)
+    if (timeLastForceEffect != 0 && !GETSTIME::HasTimePassed(timeLastForceEffect, settingCooldownForceEffect))
     {
-        Log("Force Effect is on cooldown for " + ToString(cooldownForceEffect) + " more frames");
+        Log("Force Effect is on cooldown for " + ToString(settingCooldownForceEffect - GETSTIME::GetTimeSince(timeLastForceEffect)) + " more ms");
         return false;
     }
 
-    if(!(hitPacket.ragdollType >= 0) && !(hitPacket.ragdollType <= 4))
+    if (hitPacket.ragdollType < 0 || hitPacket.ragdollType > 3)
     {
         Log("Ragdoll type is invalid, cannot apply force effect");
         return false;
-	}
+    }
 
-	Log("Force effect should be applied");
+    Log("Force effect should be applied");
     return true;
 }
 
@@ -247,13 +176,13 @@ int DetermineDuration(int ragdollType)
     switch (ragdollType)
     {
         case 0:
-            return settingRadollDurationForType0;
+            return settingRagdollDurationForType0;
         case 1:
-            return settingRadollDurationForType1;
+            return settingRagdollDurationForType1;
         case 2:
-            return settingRadollDurationForType2;
+            return settingRagdollDurationForType2;
         case 3:
-            return settingRadollDurationForType3;
+            return settingRagdollDurationForType3;
         default:
             return 0;
     }
@@ -262,112 +191,153 @@ int DetermineDuration(int ragdollType)
 float DetermineForceIntensity()
 {
     float intensityBase = settingForceBaseToApplyToRagdoll;
-	Log("Intensity base: " + ToString(intensityBase));
-	float scaledPercent = ((GetDamagePercentFromHitPacket() / 100.0f) * 10.0f) + 90.0f;
-	Log("Scaled percent: " + ToString(scaledPercent) + "Based on damage percent" + ToString(GetDamagePercentFromHitPacket()));
-	float finalIntensity = intensityBase * (scaledPercent / 100.0f);
-	Log("Final intensity: " + ToString(finalIntensity));
+    Log("Intensity base: " + ToString(intensityBase));
+    // Damage percent is a 0-1 fraction, so this scales the force from 90% to 100% of base
+    float scaledPercent = (GetDamagePercentFromHitPacket() * 10.0f) + 90.0f;
+    Log("Scaled percent: " + ToString(scaledPercent) + "Based on damage percent" + ToString(GetDamagePercentFromHitPacket()));
+    float finalIntensity = intensityBase * (scaledPercent / 100.0f);
+    Log("Final intensity: " + ToString(finalIntensity));
     return finalIntensity;
 }
 
 bool DetermineShouldClearHitPacket()
 {
+    if (hitPacket.forceApplied)
+    {
+        Log("Force has been applied, clearing hit packet");
+        return true;
+    }
+
+    if (settingRequireHumanDamageSource)
+    {
+        if (!PED::IS_PED_HUMAN(hitPacket.attacker))
+        {
+            Log("Damage source is not human, clearing hit packet");
+            return true;
+        }
+    }
+
+    if (settingRequireGunDamageSource)
+    {
+        if (!WEAPON::IS_WEAPON_A_GUN(hitPacket.attackerWeapon))
+        {
+            Log("Damage source weapon not a gun");
+            return true;
+        }
+    }
+
     if (CheckImmunity())
     {
         Log("Immunity Found");
         return true;
     }
 
+    if (hitPacket.ragdollType < 0)
+    {
+        Log("Damage is below every ragdoll threshold, clearing hit packet");
+        return true;
+    }
+
     if (!hitPacket.rollPassed)
     {
         Log("Roll did not pass, clearing hit packet");
-		return true;
-    }
-
-    if(hitPacket.forceApplied)
-    {
-        Log("Force has been applied, clearing hit packet");
         return true;
     }
 
     if (framesToAttemptForceEffect == 0 && hitPacket.ragdollApplied)
     {
         Log("Frames to attempt force effect has reached 0, clearing hit packet");
-		return true;
+        return true;
     }
 
-	Log("Hit packet should not be cleared yet");
+    // Only before our own ragdoll is applied, otherwise it would clear the packet before the force effect
+    if (settingIgnoreHitsWhileRagdolled && !hitPacket.ragdollApplied && CheckIsPedRagdolled(player))
+    {
+        Log("Player is already ragdolled, clearing hit packet");
+        return true;
+    }
+
+    Log("Hit packet should not be cleared yet");
     return false;
 }
 
 void ApplyHitReaction()
 {
-    if(DetermineShouldClearHitPacket())
+    if (DetermineShouldClearHitPacket())
     {
         ClearHitPacket();
         return;
-	}
-
-    Log("Ragdoll Cooldown Duration " + ToString(cooldownRagdoll));
-    if (DetermineShouldApplyRagdoll())
-    {
-
-        ApplyRagdoll(player, hitPacket.ragdollDuration, hitPacket.ragdollType);
-        framesToAttemptForceEffect = 30;
-        cooldownRagdoll = settingCooldownRagdoll;
-		hitPacket.ragdollApplied = true;
     }
 
-	Log("framesToAttemptForceEffect " + ToString(framesToAttemptForceEffect));
-    Log("Force Cooldown Duration " + ToString(cooldownForceEffect));
+    if (DetermineShouldApplyRagdoll())
+    {
+        ApplyRagdoll(player, hitPacket.ragdollDuration, hitPacket.ragdollType);
+        framesToAttemptForceEffect = FRAMES_TO_ATTEMPT_FORCE_EFFECT;
+        timeLastRagdoll = GETSTIME::GetGameTime();
+        hitPacket.ragdollApplied = true;
+    }
+
+    Log("framesToAttemptForceEffect " + ToString(framesToAttemptForceEffect));
     if (DetermineShouldForceEffect())
     {
         ApplyForce(player, hitPacket.attackerDirection, hitPacket.forceIntensity);
         hitPacket.forceApplied = true;
-        cooldownForceEffect = settingCooldownForceEffect;
+        timeLastForceEffect = GETSTIME::GetGameTime();
     }
 }
 
 void UpdateHitSystem()
 {
-	Log("Updating Hit System");
+    Log("Updating Hit System");
 
     hitPacket.equippedWeapon = GetPedWeapon(player);
     Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
-	Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
+    Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
 
-	hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
-	Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
-	hitPacket.damage = hitPacket.event.damage;
-	Log("Event Damage Logged: " + ToString(hitPacket.damage));
-	hitPacket.startHealth = lastHealth;
+    hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
+    Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
+    hitPacket.damage = hitPacket.event.damage;
+    Log("Event Damage Logged: " + ToString(hitPacket.damage));
+    hitPacket.startHealth = lastHealth;
     Log("Event startHealth Logged: " + ToString(hitPacket.startHealth));
     hitPacket.damagePercentFullHealth = hitPacket.damage / hitPacket.fullHealth;
     Log("Event damagePercentFullHealth Logged: " + ToString(hitPacket.damagePercentFullHealth));
     hitPacket.damagePercentCurrentHealth = hitPacket.damage / hitPacket.startHealth;
     Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
 
-	hitPacket.ragdollType = DetermineRagdollType();
-	Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
-	hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
-	Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
+    hitPacket.ragdollType = DetermineRagdollType();
+    Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
+    hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
+    Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
 
     hitPacket.attacker = hitPacket.event.source;
-	Log("Event attacker Logged: " + ToString(hitPacket.attacker));
-    //Should I confirm an attacker exists?
-	hitPacket.attackerDirection = ComputeDirection(player, hitPacket.attacker);
-	Log("Event direction Logged: " + ToString(hitPacket.attackerDirection.x) + ", " + ToString(hitPacket.attackerDirection.y) + ", " + ToString(hitPacket.attackerDirection.z));
-	hitPacket.attackerWeapon = GetPedWeapon(hitPacket.attacker);
-	Log("Event attackerWeapon Logged: " + ToString(hitPacket.attackerWeapon));
+    Log("Event attacker Logged: " + ToString(hitPacket.attacker));
+    hitPacket.attackerDirection = ComputeDirection(player, hitPacket.attacker);
+    Log("Event direction Logged: " + ToString(hitPacket.attackerDirection.x) + ", " + ToString(hitPacket.attackerDirection.y) + ", " + ToString(hitPacket.attackerDirection.z));
+    hitPacket.attackerWeapon = GetPedWeapon(hitPacket.attacker);
+    Log("Event attackerWeapon Logged: " + ToString(hitPacket.attackerWeapon));
+    Log("Event attackerWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.attackerWeapon)));
 
-    // Make determine forceIntensity that includes a bunch of config
     hitPacket.forceIntensity = DetermineForceIntensity();
     Log("Event forceIntensity Logged: " + ToString(hitPacket.forceIntensity));
 
     int roll = Random1To100();
     hitPacket.rollPassed = roll <= settingChanceToApplyEffects;
-	Log("Event roll Logged: " + ToString(roll) + " Roll Passed: " + ToString(hitPacket.rollPassed));
-        
+    Log("Event roll Logged: " + ToString(roll) + " Roll Passed: " + ToString(hitPacket.rollPassed));
+
+    if (settingMeanShotguns)
+    {
+        if (CheckWeaponIsShotgun(hitPacket.attackerWeapon))
+        {
+            Log("Mean Shotgun: increasing effects");
+            if (hitPacket.ragdollType < 0)
+                hitPacket.ragdollType = 3;
+            else if (hitPacket.ragdollType > 0)
+                hitPacket.ragdollType--;
+            hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
+        }
+    }
+
     hitPacket.valid = true;
 }
 
@@ -384,15 +354,15 @@ void GetDamageEventData()
 
         EventEntityDamaged event{};
 
-        if (!SCRIPT::GET_EVENT_DATA(0, i,(&event), 9))
+        if (!SCRIPT::GET_EVENT_DATA(0, i, &event, 9))
             continue;
-        
+
         if (event.target != player)
             continue;
 
         Log("_____________________");
         Log("Damage Event Detected");
-		Log("Event Type: " + ToString(eventType));
+        Log("Event Type: " + ToString(eventType));
         Log("Target: " + ToString(event.target));
         Log("Source: " + ToString(event.source));
         Log("Weapon: " + ToString(event.weapon));
@@ -410,8 +380,6 @@ void GetDamageEventData()
 
 void DecrementCooldowns()
 {
-    if (cooldownRagdoll > 0) { cooldownRagdoll--; }
-    if (cooldownForceEffect > 0) { cooldownForceEffect--; }
     if (framesToAttemptForceEffect > 0) { framesToAttemptForceEffect--; }
 }
 
@@ -423,9 +391,9 @@ void mainLoop()
         DecrementCooldowns();
         if (CheckValidPed(player))
         {
-            if (!hitPacket.validEvent){GetDamageEventData();}
-            if (hitPacket.validEvent && !hitPacket.valid){UpdateHitSystem();}
-            if (hitPacket.valid){ApplyHitReaction();}
+            if (!hitPacket.validEvent) { GetDamageEventData(); }
+            if (hitPacket.validEvent && !hitPacket.valid) { UpdateHitSystem(); }
+            if (hitPacket.valid) { ApplyHitReaction(); }
         }
         lastHealth = ENTITY::GET_ENTITY_HEALTH(player);
         WAIT(0);
@@ -434,13 +402,31 @@ void mainLoop()
 
 void ScriptMain()
 {
+    fileNameSettings = ".\\PlayerRagdoll.ini";
+    LogFileName = ".\\PlayerRagdoll.log";
+
     SetConfigs();
     InitializeLogFile();
-    
-    Ped player = PLAYER::PLAYER_PED_ID();
+
+    player = PLAYER::PLAYER_PED_ID();
     lastHealth = ENTITY::GET_ENTITY_HEALTH(player);
 
-	Log("PlayerRagdoll Initialized");
+    Log("PlayerRagdoll Initialized");
 
     mainLoop();
+}
+
+BOOL APIENTRY DllMain(HMODULE hInstance, DWORD reason, LPVOID lpReserved)
+{
+    if (reason == DLL_PROCESS_ATTACH)
+    {
+        scriptRegister(hInstance, ScriptMain);
+    }
+
+    if (reason == DLL_PROCESS_DETACH)
+    {
+        scriptUnregister(hInstance);
+    }
+
+    return TRUE;
 }

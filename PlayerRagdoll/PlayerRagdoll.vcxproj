@@ -9,18 +9,19 @@
   <ItemGroup>
     <ClCompile Include="script.cpp" />
     <ClInclude Include="Globals.h" />
-    <ClInclude Include="script.h" />
-    <ClInclude Include="UtilitiesChecks.h" />
-    <ClInclude Include="UtilitiesConfig.h" />
-    <ClInclude Include="UtilitiesLogger.h" />
-    <ClCompile Include="main.cpp" />
-    <ClInclude Include="UtilitiesGets.h" />
-    <ClInclude Include="UtilitiesRandom.h" />
+    <None Include="PlayerRagdoll.ini" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\main.h" />
     <ClInclude Include="..\..\inc\natives.h" />
     <ClInclude Include="..\..\inc\types.h" />
+    <ClInclude Include="..\..\inc\enums.h" />
+    <ClInclude Include="..\..\inc\nativeCaller.h" />
+    <ClInclude Include="..\..\inc\UtilitiesChecks.h" />
+    <ClInclude Include="..\..\inc\UtilitiesConfig.h" />
+    <ClInclude Include="..\..\inc\UtilitiesGets.h" />
+    <ClInclude Include="..\..\inc\UtilitiesLogger.h" />
+    <ClInclude Include="..\..\inc\UtilitiesRandom.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8D82F34A-1D64-465B-84B1-37F89AD3D20B}</ProjectGuid>
@@ -46,8 +47,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <TargetExt>.asi</TargetExt>
-    <OutDir>bin\$(Configuration)\</OutDir>
-    <IntDir>tmp\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -69,7 +68,10 @@
       <AdditionalOptions>..\..\lib\ScriptHookRDR2.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(TargetPath)" "C:\Program Files (x86)\Steam\steamapps\common\Red Dead Redemption 2"</Command>
+      <Command>copy /Y "$(TargetPath)" "C:\Program Files (x86)\Steam\steamapps\common\Red Dead Redemption 2"
+copy /Y "$(ProjectDir)PlayerRagdoll.ini" "C:\Program Files (x86)\Steam\steamapps\common\Red Dead Redemption 2"
+copy /Y "$(ProjectDir)PlayerRagdoll.ini" "$(TargetDir)PlayerRagdoll.ini"
+powershell -NoProfile -Command "Compress-Archive -Force -Path '$(TargetPath)','$(ProjectDir)PlayerRagdoll.ini' -DestinationPath '$(TargetDir)PlayerRagdoll.zip'"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
