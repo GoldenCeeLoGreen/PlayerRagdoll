@@ -125,6 +125,9 @@ bool CheckImmunity()
     if (settingImmunityGrapple && PED::GET_PED_IS_GRAPPLING(player)) return Immune("Grapple");
     if (settingImmunityMeleeCombat && PED::IS_PED_IN_MELEE_COMBAT(player)) return Immune("Melee Combat");
 
+    if (settingImmunityDeadEye && IsDeadEyeActivated(PLAYER::PLAYER_ID())) return Immune("Dead Eye");
+    if (settingImmunityCarrying && PED::IS_PED_CARRYING_SOMETHING(player)) return Immune("Carrying");
+
     Log("No immunities found");
     return false;
 }

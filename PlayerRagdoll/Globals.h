@@ -108,6 +108,8 @@ bool settingImmunityHorse = false;
 bool settingImmunityVehicle = false;
 bool settingImmunityGrapple = false;
 bool settingImmunityMeleeCombat = false;
+bool settingImmunityDeadEye = false;
+bool settingImmunityCarrying = false;
 
 void SetWeaponImmunitySettings()
 {
@@ -162,6 +164,8 @@ void SetConfigs()
     settingImmunityVehicle = GetIniBool("settingImmunityVehicle");
     settingImmunityGrapple = GetIniBool("settingImmunityGrapple");
     settingImmunityMeleeCombat = GetIniBool("settingImmunityMeleeCombat");
+    settingImmunityDeadEye = GetIniBool("settingImmunityDeadEye");
+    settingImmunityCarrying = GetIniBool("settingImmunityCarrying");
 
     settingMeanShotguns = GetIniBool("settingMeanShotguns");
 
