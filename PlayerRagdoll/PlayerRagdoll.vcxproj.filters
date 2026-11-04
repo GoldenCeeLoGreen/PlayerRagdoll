@@ -35,6 +35,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="Globals.h" />
+    <ClInclude Include="..\..\inc\UtilitiesMisc.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="PlayerRagdoll.ini" />

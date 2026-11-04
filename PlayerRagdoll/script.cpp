@@ -4,9 +4,6 @@
 
 using namespace GETSPEDINFO;
 
-// How many frames after the ragdoll we keep trying to apply the force effect
-constexpr int FRAMES_TO_ATTEMPT_FORCE_EFFECT = 30;
-
 void ClearHitPacket()
 {
     Log("Clearing Hit Packet");
@@ -45,24 +42,72 @@ Vector3 ComputeDirection(Ped player, Ped attacker)
     return dir;
 }
 
-int GetReactionFromDamage(float percent)
+RagdollType GetReactionFromDamage(float percent)
 {
     Log("Determining reaction type for damage percent: " + ToString(percent));
     if (percent > settingHealthPercentToCauseType0)
-        return 0;
+        return RagdollType::Normal;
     if (percent > settingHealthPercentToCauseType1)
-        return 1;
-    if (percent > settingHealthPercentToCauseType2)
-        return 2;
+        return RagdollType::StiffFall;
     if (percent > settingHealthPercentToCauseType3)
-        return 3;
-    return -1;
+        return RagdollType::WideStumble;
+    return RagdollType::None;
 }
 
-void ApplyRagdoll(Ped player, int duration, int ragdolltype)
+RagdollType GetStrongerReaction(RagdollType reaction)
 {
-    Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString(ragdolltype));
-    PED::SET_PED_TO_RAGDOLL(player, duration, duration, ragdolltype, true, true, nullptr);
+    switch (reaction)
+    {
+        case RagdollType::WideStumble:
+            return RagdollType::StiffFall;
+        case RagdollType::StiffFall:
+        case RagdollType::Normal:
+            return RagdollType::Normal;
+        default:
+            return RagdollType::WideStumble;
+    }
+}
+
+// Value taken from how the game scripts call SET_PED_TO_RAGDOLL_WITH_FALL; the remaining extra arguments are 0
+constexpr float FALL_EXTRA_P7 = 2.0f;
+
+void ApplyStandardRagdoll(Ped player, int duration, RagdollType ragdollType)
+{
+    BOOL result = PED::SET_PED_TO_RAGDOLL(player, duration, duration, (int)ragdollType, false, false, "");
+    Log("SET_PED_TO_RAGDOLL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
+}
+
+void ApplyFallRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
+{
+    BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, duration, duration, (int)ragdollType,
+        fallDirection.x, fallDirection.y, 0.0f, FALL_EXTRA_P7, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    Log("SET_PED_TO_RAGDOLL_WITH_FALL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
+}
+
+// Ragdoll with fall is ignored while sprinting, so only the strong types use it and only when not sprinting
+bool ShouldUseFallRagdoll(Ped player, RagdollType ragdollType)
+{
+    if (ragdollType != RagdollType::Normal && ragdollType != RagdollType::StiffFall)
+        return false;
+
+    if (CheckIsPedSprinting(player))
+    {
+        Log("Player is sprinting, using the standard ragdoll instead of ragdoll with fall");
+        return false;
+    }
+
+    return true;
+}
+
+void ApplyRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
+{
+    Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString((int)ragdollType));
+    Log("CAN_PED_RAGDOLL before: " + ToString(PED::CAN_PED_RAGDOLL(player)));
+
+    if (ShouldUseFallRagdoll(player, ragdollType))
+        ApplyFallRagdoll(player, duration, ragdollType, fallDirection);
+    else
+        ApplyStandardRagdoll(player, duration, ragdollType);
 }
 
 void ApplyForce(Ped ped, Vector3 direction, float intensity)
@@ -89,7 +134,7 @@ float GetDamagePercentFromHitPacket()
         return hitPacket.damagePercentCurrentHealth;
 }
 
-int DetermineRagdollType()
+RagdollType DetermineRagdollType()
 {
     return GetReactionFromDamage(GetDamagePercentFromHitPacket());
 }
@@ -134,12 +179,6 @@ bool CheckImmunity()
 
 bool DetermineShouldApplyRagdoll()
 {
-    if (hitPacket.ragdollApplied)
-    {
-        Log("Ragdoll has already been applied for this hit event");
-        return false;
-    }
-
     if (timeLastRagdoll != 0 && !GETSTIME::HasTimePassed(timeLastRagdoll, settingCooldownRagdoll))
     {
         Log("Ragdoll is on cooldown for " + ToString(settingCooldownRagdoll - GETSTIME::GetTimeSince(timeLastRagdoll)) + " more ms");
@@ -152,9 +191,9 @@ bool DetermineShouldApplyRagdoll()
 
 bool DetermineShouldForceEffect()
 {
-    if (!hitPacket.ragdollApplied)
+    if (!CheckIsPedRagdolled(player))
     {
-        Log("Ragdoll has not been applied for this hit event");
+        Log("Player is not ragdolled");
         return false;
     }
 
@@ -164,27 +203,19 @@ bool DetermineShouldForceEffect()
         return false;
     }
 
-    if (hitPacket.ragdollType < 0 || hitPacket.ragdollType > 3)
-    {
-        Log("Ragdoll type is invalid, cannot apply force effect");
-        return false;
-    }
-
     Log("Force effect should be applied");
     return true;
 }
 
-int DetermineDuration(int ragdollType)
+int DetermineDuration(RagdollType ragdollType)
 {
     switch (ragdollType)
     {
-        case 0:
+        case RagdollType::Normal:
             return settingRagdollDurationForType0;
-        case 1:
+        case RagdollType::StiffFall:
             return settingRagdollDurationForType1;
-        case 2:
-            return settingRagdollDurationForType2;
-        case 3:
+        case RagdollType::WideStumble:
             return settingRagdollDurationForType3;
         default:
             return 0;
@@ -205,12 +236,6 @@ float DetermineForceIntensity()
 
 bool DetermineShouldClearHitPacket()
 {
-    if (hitPacket.forceApplied)
-    {
-        Log("Force has been applied, clearing hit packet");
-        return true;
-    }
-
     if (settingRequireHumanDamageSource)
     {
         if (!PED::IS_PED_HUMAN(hitPacket.attacker))
@@ -235,7 +260,7 @@ bool DetermineShouldClearHitPacket()
         return true;
     }
 
-    if (hitPacket.ragdollType < 0)
+    if (hitPacket.ragdollType == RagdollType::None)
     {
         Log("Damage is below every ragdoll threshold, clearing hit packet");
         return true;
@@ -247,17 +272,13 @@ bool DetermineShouldClearHitPacket()
         return true;
     }
 
-    if (framesToAttemptForceEffect == 0 && hitPacket.ragdollApplied)
+    if (settingIgnoreHitsWhileRagdolled)
     {
-        Log("Frames to attempt force effect has reached 0, clearing hit packet");
-        return true;
-    }
-
-    // Only before our own ragdoll is applied, otherwise it would clear the packet before the force effect
-    if (settingIgnoreHitsWhileRagdolled && !hitPacket.ragdollApplied && CheckIsPedRagdolled(player))
-    {
-        Log("Player is already ragdolled, clearing hit packet");
-        return true;
+        if (CheckIsPedRagdolled(player))
+        {
+            Log("Player is already ragdolled, clearing hit packet");
+            return true;
+        }
     }
 
     Log("Hit packet should not be cleared yet");
@@ -274,19 +295,17 @@ void ApplyHitReaction()
 
     if (DetermineShouldApplyRagdoll())
     {
-        ApplyRagdoll(player, hitPacket.ragdollDuration, hitPacket.ragdollType);
-        framesToAttemptForceEffect = FRAMES_TO_ATTEMPT_FORCE_EFFECT;
+        ApplyRagdoll(player, hitPacket.ragdollDuration, hitPacket.ragdollType, hitPacket.attackerDirection);
         timeLastRagdoll = GETSTIME::GetGameTime();
-        hitPacket.ragdollApplied = true;
     }
 
-    Log("framesToAttemptForceEffect " + ToString(framesToAttemptForceEffect));
     if (DetermineShouldForceEffect())
     {
         ApplyForce(player, hitPacket.attackerDirection, hitPacket.forceIntensity);
-        hitPacket.forceApplied = true;
         timeLastForceEffect = GETSTIME::GetGameTime();
     }
+
+    ClearHitPacket();
 }
 
 void UpdateHitSystem()
@@ -297,19 +316,20 @@ void UpdateHitSystem()
     Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
     Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
 
-    hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, true);
+    hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, 0) - (100 - ATTRIBUTE::_GET_ATTRIBUTE_CORE_VALUE(player, 0));
     Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
     hitPacket.damage = hitPacket.event.damage;
     Log("Event Damage Logged: " + ToString(hitPacket.damage));
     hitPacket.startHealth = lastHealth;
     Log("Event startHealth Logged: " + ToString(hitPacket.startHealth));
-    hitPacket.damagePercentFullHealth = hitPacket.damage / hitPacket.fullHealth;
+    Log("Event currentHealth Logged: " + ToString(ENTITY::GET_ENTITY_HEALTH(player)));
+    hitPacket.damagePercentFullHealth = hitPacket.damage / MinOne(hitPacket.fullHealth);
     Log("Event damagePercentFullHealth Logged: " + ToString(hitPacket.damagePercentFullHealth));
-    hitPacket.damagePercentCurrentHealth = hitPacket.damage / hitPacket.startHealth;
+    hitPacket.damagePercentCurrentHealth = hitPacket.damage / MinOne(hitPacket.startHealth);
     Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
 
     hitPacket.ragdollType = DetermineRagdollType();
-    Log("Event ragdollType Logged: " + ToString(hitPacket.ragdollType));
+    Log("Event ragdollType Logged: " + ToString((int)hitPacket.ragdollType));
     hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
     Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
 
@@ -333,11 +353,10 @@ void UpdateHitSystem()
         if (CheckWeaponIsShotgun(hitPacket.attackerWeapon))
         {
             Log("Mean Shotgun: increasing effects");
-            if (hitPacket.ragdollType < 0)
-                hitPacket.ragdollType = 3;
-            else if (hitPacket.ragdollType > 0)
-                hitPacket.ragdollType--;
+            hitPacket.ragdollType = GetStrongerReaction(hitPacket.ragdollType);
             hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
+            hitPacket.forceIntensity *= 2.0f;
+            Log("Mean Shotgun: doubled forceIntensity to " + ToString(hitPacket.forceIntensity));
         }
     }
 
@@ -381,9 +400,72 @@ void GetDamageEventData()
     }
 }
 
-void DecrementCooldowns()
+// Debug: numpad 1 cycles SET_PED_TO_RAGDOLL_WITH_FALL through types 3, 2, 1, 0 using one set of random criteria,
+// then rolls new criteria on the next press.
+constexpr bool DEBUG_FALL_HOTKEY = true;
+
+struct DebugFallCriteria
 {
-    if (framesToAttemptForceEffect > 0) { framesToAttemptForceEffect--; }
+    int duration = 0;
+    float dirX = 0.0f, dirY = 0.0f, dirZ = 0.0f;
+    float p7 = 0.0f, p8 = 0.0f, p9 = 0.0f, p10 = 0.0f, p11 = 0.0f, p12 = 0.0f, p13 = 0.0f;
+};
+
+DebugFallCriteria GenerateDebugFallCriteria()
+{
+    DebugFallCriteria c;
+
+    c.duration = (int)RandomRange(500.0f, 3000.0f);
+
+    // Random horizontal unit direction with a small vertical component
+    float angle = RandomRange(0.0f, 6.2831853f);
+    c.dirX = std::cos(angle);
+    c.dirY = std::sin(angle);
+    c.dirZ = RandomRange(-0.3f, 0.3f);
+    float len = std::sqrt(c.dirX * c.dirX + c.dirY * c.dirY + c.dirZ * c.dirZ);
+    c.dirX /= len;
+    c.dirY /= len;
+    c.dirZ /= len;
+
+    c.p7 = RandomRange(0.0f, 5.0f);
+    c.p8 = RandomRange(-1.0f, 1.0f);
+    c.p9 = RandomRange(-1.0f, 1.0f);
+    c.p10 = RandomRange(-1.0f, 1.0f);
+    c.p11 = RandomRange(-1.0f, 1.0f);
+    c.p12 = RandomRange(-1.0f, 1.0f);
+    c.p13 = RandomRange(-1.0f, 1.0f);
+
+    return c;
+}
+
+void DebugFallRagdoll()
+{
+    static const int types[] = { 3, 2, 1, 0 };
+    static int step = 0;
+    static DebugFallCriteria criteria;
+
+    if (!IsKeyPressed(VK_NUMPAD1))
+        return;
+
+    if (step == 0)
+    {
+        criteria = GenerateDebugFallCriteria();
+        Log("_____________________");
+        Log("DEBUG FALL new criteria: duration=" + ToString(criteria.duration) +
+            " dir=(" + ToString(criteria.dirX) + ", " + ToString(criteria.dirY) + ", " + ToString(criteria.dirZ) + ")" +
+            " p7=" + ToString(criteria.p7) + " p8=" + ToString(criteria.p8) + " p9=" + ToString(criteria.p9) +
+            " p10=" + ToString(criteria.p10) + " p11=" + ToString(criteria.p11) + " p12=" + ToString(criteria.p12) +
+            " p13=" + ToString(criteria.p13));
+    }
+
+    int type = types[step];
+    BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, criteria.duration, criteria.duration, type,
+        criteria.dirX, criteria.dirY, criteria.dirZ,
+        criteria.p7, criteria.p8, criteria.p9, criteria.p10, criteria.p11, criteria.p12, criteria.p13);
+    Log("DEBUG FALL type " + ToString(type) + " returned: " + ToString(result) +
+        " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
+
+    step = (step + 1) % 4;
 }
 
 void mainLoop()
@@ -391,12 +473,17 @@ void mainLoop()
     while (true)
     {
         player = PLAYER::PLAYER_PED_ID();
-        DecrementCooldowns();
         if (CheckValidPed(player))
         {
+            if (DEBUG_FALL_HOTKEY) { DebugFallRagdoll(); }
             if (!hitPacket.validEvent) { GetDamageEventData(); }
             if (hitPacket.validEvent && !hitPacket.valid) { UpdateHitSystem(); }
             if (hitPacket.valid) { ApplyHitReaction(); }
+        }
+        else if (hitPacket.validEvent)
+        {
+            Log("Player is not valid, clearing hit packet");
+            ClearHitPacket();
         }
         lastHealth = ENTITY::GET_ENTITY_HEALTH(player);
         WAIT(0);

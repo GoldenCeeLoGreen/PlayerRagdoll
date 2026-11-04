@@ -10,6 +10,7 @@
 #include "../../inc/UtilitiesConfig.h"
 #include "../../inc/UtilitiesChecks.h"
 #include "../../inc/UtilitiesRandom.h"
+#include "../../inc/UtilitiesMisc.h"
 
 struct EventEntityDamaged
 {
@@ -22,6 +23,15 @@ struct EventEntityDamaged
     alignas(8) float x;
     alignas(8) float y;
     alignas(8) float z;
+};
+
+// Values match the ragdollType argument of SET_PED_TO_RAGDOLL (type 2 is rejected by the game, so it is skipped)
+enum class RagdollType : int
+{
+    None = -1,
+    Normal = 0,
+    StiffFall = 1,
+    WideStumble = 3
 };
 
 struct HitPacket
@@ -44,12 +54,10 @@ struct HitPacket
     Hash attackerWeapon = 0;
     Vector3 attackerDirection{};
 
-    int ragdollType = -1;
+    RagdollType ragdollType = RagdollType::None;
     int ragdollDuration = 0;
     float forceIntensity = 0.0f;
 
-    bool ragdollApplied = false;
-    bool forceApplied = false;
     bool rollPassed = false;
 };
 
@@ -57,8 +65,6 @@ struct HitPacket
 Ped player = 0;
 int lastHealth = 0;
 HitPacket hitPacket;
-
-int framesToAttemptForceEffect = 0;
 
 // Game time (ms) each effect was last applied; 0 = never
 int timeLastRagdoll = 0;
@@ -74,12 +80,10 @@ bool settingRequireGunDamageSource = false;
 
 float settingHealthPercentToCauseType0 = 0.0f;
 float settingHealthPercentToCauseType1 = 0.0f;
-float settingHealthPercentToCauseType2 = 0.0f;
 float settingHealthPercentToCauseType3 = 0.0f;
 
 int settingRagdollDurationForType0 = 0;
 int settingRagdollDurationForType1 = 0;
-int settingRagdollDurationForType2 = 0;
 int settingRagdollDurationForType3 = 0;
 
 float settingForceBaseToApplyToRagdoll = 0.0f;
@@ -138,13 +142,11 @@ void SetRagdollSettings()
 
     settingRagdollDurationForType0 = GetIniFloat("settingRagdollDurationForType0") * 1000;
     settingRagdollDurationForType1 = GetIniFloat("settingRagdollDurationForType1") * 1000;
-    settingRagdollDurationForType2 = GetIniFloat("settingRagdollDurationForType2") * 1000;
     settingRagdollDurationForType3 = GetIniFloat("settingRagdollDurationForType3") * 1000;
 
     // Percent thresholds are entered as 0-100 in the ini
     settingHealthPercentToCauseType0 = GetIniFloat("settingHealthPercentToCauseType0") / 100.0f;
     settingHealthPercentToCauseType1 = GetIniFloat("settingHealthPercentToCauseType1") / 100.0f;
-    settingHealthPercentToCauseType2 = GetIniFloat("settingHealthPercentToCauseType2") / 100.0f;
     settingHealthPercentToCauseType3 = GetIniFloat("settingHealthPercentToCauseType3") / 100.0f;
 
     settingForceBaseToApplyToRagdoll = GetIniFloat("settingForceBaseToApplyToRagdoll");
