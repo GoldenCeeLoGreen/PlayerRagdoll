@@ -84,7 +84,7 @@ void ApplyStandardRagdoll(Ped player, int duration, RagdollType ragdollType)
 void ApplyFallRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
 {
     BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, duration, duration, (int)ragdollType,
-        fallDirection.x, fallDirection.y, 0.0f, FALL_EXTRA_P7, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        fallDirection.x, fallDirection.y, fallDirection.z, FALL_EXTRA_P7, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     Log("SET_PED_TO_RAGDOLL_WITH_FALL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
 }
 
