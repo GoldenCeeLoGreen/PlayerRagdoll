@@ -49,6 +49,8 @@ RagdollType GetReactionFromDamage(float percent)
         return RagdollType::Normal;
     if (percent > settingHealthPercentToCauseType1)
         return RagdollType::StiffFall;
+    if (percent > settingHealthPercentToCauseType2)
+        return RagdollType::NarrowStumble;
     if (percent > settingHealthPercentToCauseType3)
         return RagdollType::WideStumble;
     return RagdollType::None;
@@ -59,6 +61,8 @@ RagdollType GetStrongerReaction(RagdollType reaction)
     switch (reaction)
     {
         case RagdollType::WideStumble:
+            return RagdollType::NarrowStumble;
+        case RagdollType::NarrowStumble:
             return RagdollType::StiffFall;
         case RagdollType::StiffFall:
         case RagdollType::Normal:
@@ -84,19 +88,21 @@ void ApplyFallRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3
     Log("SET_PED_TO_RAGDOLL_WITH_FALL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
 }
 
-// Ragdoll with fall is ignored while sprinting, so only the strong types use it and only when not sprinting
-bool ShouldUseFallRagdoll(Ped player, RagdollType ragdollType)
+// Types 0-2 use ragdoll with fall, which is ignored while sprinting. Then 0 and 1 keep their type with the
+// standard ragdoll, and 2 (only valid with fall) becomes 3.
+bool ShouldUseFallRagdoll(Ped player, RagdollType& ragdollType)
 {
-    if (ragdollType != RagdollType::Normal && ragdollType != RagdollType::StiffFall)
+    if (ragdollType == RagdollType::WideStumble || ragdollType == RagdollType::None)
         return false;
 
-    if (CheckIsPedSprinting(player))
-    {
-        Log("Player is sprinting, using the standard ragdoll instead of ragdoll with fall");
-        return false;
-    }
+    if (!CheckIsPedSprinting(player))
+        return true;
 
-    return true;
+    Log("Player is sprinting, using the standard ragdoll instead of ragdoll with fall");
+    if (ragdollType == RagdollType::NarrowStumble)
+        ragdollType = RagdollType::WideStumble;
+
+    return false;
 }
 
 void ApplyRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
@@ -215,6 +221,8 @@ int DetermineDuration(RagdollType ragdollType)
             return settingRagdollDurationForType0;
         case RagdollType::StiffFall:
             return settingRagdollDurationForType1;
+        case RagdollType::NarrowStumble:
+            return settingRagdollDurationForType2;
         case RagdollType::WideStumble:
             return settingRagdollDurationForType3;
         default:
@@ -400,94 +408,59 @@ void GetDamageEventData()
     }
 }
 
-// Debug: numpad 1 cycles SET_PED_TO_RAGDOLL_WITH_FALL through types 3, 2, 1, 0 using one set of random criteria,
-// then rolls new criteria on the next press.
-constexpr bool DEBUG_FALL_HOTKEY = true;
+// Debug: numpad 1 builds a valid hit packet from random values and lets the normal hit reaction handle it
+constexpr bool DEBUG_HIT_HOTKEY = true;
 
-struct DebugFallCriteria
+Vector3 RandomHorizontalDirection()
 {
-    int duration = 0;
-    float dirX = 0.0f, dirY = 0.0f, dirZ = 0.0f;
-    float p7 = 0.0f, p8 = 0.0f, p9 = 0.0f, p10 = 0.0f, p11 = 0.0f, p12 = 0.0f, p13 = 0.0f;
-};
-
-DebugFallCriteria GenerateDebugFallCriteria()
-{
-    DebugFallCriteria c;
-
-    c.duration = (int)RandomRange(500.0f, 3000.0f);
-
-    // Random horizontal unit direction with a small vertical component
     float angle = RandomRange(0.0f, 6.2831853f);
-    c.dirX = std::cos(angle);
-    c.dirY = std::sin(angle);
-    c.dirZ = RandomRange(-0.3f, 0.3f);
-    float len = std::sqrt(c.dirX * c.dirX + c.dirY * c.dirY + c.dirZ * c.dirZ);
-    c.dirX /= len;
-    c.dirY /= len;
-    c.dirZ /= len;
 
-    c.p7 = RandomRange(0.0f, 5.0f);
-    c.p8 = RandomRange(-1.0f, 1.0f);
-    c.p9 = RandomRange(-1.0f, 1.0f);
-    c.p10 = RandomRange(-1.0f, 1.0f);
-    c.p11 = RandomRange(-1.0f, 1.0f);
-    c.p12 = RandomRange(-1.0f, 1.0f);
-    c.p13 = RandomRange(-1.0f, 1.0f);
-
-    return c;
+    Vector3 direction{};
+    direction.x = std::cos(angle);
+    direction.y = std::sin(angle);
+    direction.z = 0.0f;
+    return direction;
 }
 
-void DebugFallRagdoll()
+void GenerateDebugHitPacket()
 {
-    static const int types[] = { 3, 2, 1, 0 };
-    static int step = 0;
-    static DebugFallCriteria criteria;
+    hitPacket = HitPacket();
 
+    hitPacket.equippedWeapon = GetPedWeapon(player);
+
+    hitPacket.fullHealth = RandomRange(200.0f, 900.0f);
+    hitPacket.startHealth = RandomRange(1.0f, hitPacket.fullHealth);
+    hitPacket.damage = RandomRange(1.0f, std::fmin(hitPacket.startHealth, hitPacket.fullHealth * 0.5f) + 1.0f);
+    hitPacket.damagePercentFullHealth = hitPacket.damage / MinOne(hitPacket.fullHealth);
+    hitPacket.damagePercentCurrentHealth = hitPacket.damage / MinOne(hitPacket.startHealth);
+
+    // The player stands in as a human attacker holding whatever they have equipped
+    hitPacket.attacker = player;
+    hitPacket.attackerWeapon = hitPacket.equippedWeapon;
+    hitPacket.attackerDirection = RandomHorizontalDirection();
+
+    hitPacket.ragdollType = DetermineRagdollType();
+    hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
+    hitPacket.forceIntensity = DetermineForceIntensity();
+    hitPacket.rollPassed = Random1To100() <= settingChanceToApplyEffects;
+
+    hitPacket.validEvent = true;
+    hitPacket.valid = true;
+}
+
+void DebugHitPacket()
+{
     if (!IsKeyPressed(VK_NUMPAD1))
         return;
 
-    if (step == 0)
-    {
-        criteria = GenerateDebugFallCriteria();
-        Log("_____________________");
-        Log("DEBUG FALL new criteria: duration=" + ToString(criteria.duration) +
-            " dir=(" + ToString(criteria.dirX) + ", " + ToString(criteria.dirY) + ", " + ToString(criteria.dirZ) + ")" +
-            " p7=" + ToString(criteria.p7) + " p8=" + ToString(criteria.p8) + " p9=" + ToString(criteria.p9) +
-            " p10=" + ToString(criteria.p10) + " p11=" + ToString(criteria.p11) + " p12=" + ToString(criteria.p12) +
-            " p13=" + ToString(criteria.p13));
-    }
-
-    int type = types[step];
-    BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, criteria.duration, criteria.duration, type,
-        criteria.dirX, criteria.dirY, criteria.dirZ,
-        criteria.p7, criteria.p8, criteria.p9, criteria.p10, criteria.p11, criteria.p12, criteria.p13);
-    Log("DEBUG FALL type " + ToString(type) + " returned: " + ToString(result) +
-        " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
-
-    step = (step + 1) % 4;
-}
-
-void mainLoop()
-{
-    while (true)
-    {
-        player = PLAYER::PLAYER_PED_ID();
-        if (CheckValidPed(player))
-        {
-            if (DEBUG_FALL_HOTKEY) { DebugFallRagdoll(); }
-            if (!hitPacket.validEvent) { GetDamageEventData(); }
-            if (hitPacket.validEvent && !hitPacket.valid) { UpdateHitSystem(); }
-            if (hitPacket.valid) { ApplyHitReaction(); }
-        }
-        else if (hitPacket.validEvent)
-        {
-            Log("Player is not valid, clearing hit packet");
-            ClearHitPacket();
-        }
-        lastHealth = ENTITY::GET_ENTITY_HEALTH(player);
-        WAIT(0);
-    }
+    Log("_____________________");
+    Log("DEBUG hit packet generated");
+    GenerateDebugHitPacket();
+    Log("DEBUG fullHealth " + ToString(hitPacket.fullHealth) + " startHealth " + ToString(hitPacket.startHealth) +
+        " damage " + ToString(hitPacket.damage) + " percent " + ToString(GetDamagePercentFromHitPacket()) +
+        " ragdollType " + ToString((int)hitPacket.ragdollType) + " duration " + ToString(hitPacket.ragdollDuration) +
+        " force " + ToString(hitPacket.forceIntensity) + " rollPassed " + ToString(hitPacket.rollPassed) +
+        " weapon " + ToString(hitPacket.attackerWeapon));
 }
 
 void ScriptMain()
@@ -503,7 +476,24 @@ void ScriptMain()
 
     Log("PlayerRagdoll Initialized");
 
-    mainLoop();
+    while (true)
+    {
+        player = PLAYER::PLAYER_PED_ID();
+        if (CheckValidPed(player))
+        {
+            //if (DEBUG_HIT_HOTKEY) { DebugHitPacket(); }
+            if (!hitPacket.validEvent) { GetDamageEventData(); }
+            if (hitPacket.validEvent && !hitPacket.valid) { UpdateHitSystem(); }
+            if (hitPacket.valid) { ApplyHitReaction(); }
+        }
+        else if (hitPacket.validEvent)
+        {
+            Log("Player is not valid, clearing hit packet");
+            ClearHitPacket();
+        }
+        lastHealth = ENTITY::GET_ENTITY_HEALTH(player);
+        WAIT(0);
+    }
 }
 
 BOOL APIENTRY DllMain(HMODULE hInstance, DWORD reason, LPVOID lpReserved)

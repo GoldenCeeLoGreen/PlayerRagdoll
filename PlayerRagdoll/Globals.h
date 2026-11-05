@@ -25,12 +25,14 @@ struct EventEntityDamaged
     alignas(8) float z;
 };
 
-// Values match the ragdollType argument of SET_PED_TO_RAGDOLL (type 2 is rejected by the game, so it is skipped)
+// Values match the ragdollType argument of SET_PED_TO_RAGDOLL / SET_PED_TO_RAGDOLL_WITH_FALL.
+// NarrowStumble (2) is only accepted by the "with fall" version.
 enum class RagdollType : int
 {
     None = -1,
     Normal = 0,
     StiffFall = 1,
+    NarrowStumble = 2,
     WideStumble = 3
 };
 
@@ -80,10 +82,12 @@ bool settingRequireGunDamageSource = false;
 
 float settingHealthPercentToCauseType0 = 0.0f;
 float settingHealthPercentToCauseType1 = 0.0f;
+float settingHealthPercentToCauseType2 = 0.0f;
 float settingHealthPercentToCauseType3 = 0.0f;
 
 int settingRagdollDurationForType0 = 0;
 int settingRagdollDurationForType1 = 0;
+int settingRagdollDurationForType2 = 0;
 int settingRagdollDurationForType3 = 0;
 
 float settingForceBaseToApplyToRagdoll = 0.0f;
@@ -142,11 +146,13 @@ void SetRagdollSettings()
 
     settingRagdollDurationForType0 = GetIniFloat("settingRagdollDurationForType0") * 1000;
     settingRagdollDurationForType1 = GetIniFloat("settingRagdollDurationForType1") * 1000;
+    settingRagdollDurationForType2 = GetIniFloat("settingRagdollDurationForType2") * 1000;
     settingRagdollDurationForType3 = GetIniFloat("settingRagdollDurationForType3") * 1000;
 
     // Percent thresholds are entered as 0-100 in the ini
     settingHealthPercentToCauseType0 = GetIniFloat("settingHealthPercentToCauseType0") / 100.0f;
     settingHealthPercentToCauseType1 = GetIniFloat("settingHealthPercentToCauseType1") / 100.0f;
+    settingHealthPercentToCauseType2 = GetIniFloat("settingHealthPercentToCauseType2") / 100.0f;
     settingHealthPercentToCauseType3 = GetIniFloat("settingHealthPercentToCauseType3") / 100.0f;
 
     settingForceBaseToApplyToRagdoll = GetIniFloat("settingForceBaseToApplyToRagdoll");
