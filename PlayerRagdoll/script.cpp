@@ -1,6 +1,136 @@
-﻿#include "Globals.h"
-
 #include <cmath>
+#include "../../inc/natives.h"
+#include "../../inc/types.h"
+#include "../../inc/main.h"
+#include "../../inc/nativeCaller.h"
+#include "../../inc/enums.h"
+#include "../../inc/UtilitiesLogger.h"
+#include "../../inc/UtilitiesGets.h"
+#include "../../inc/UtilitiesConfig.h"
+#include "../../inc/UtilitiesChecks.h"
+#include "../../inc/UtilitiesRandom.h"
+#include "../../inc/UtilitiesMisc.h"
+
+namespace
+{
+// State
+Ped player = 0;
+int lastHealth = 0;
+HitPacket hitPacket;
+
+// Game time (ms) each effect was last applied; 0 = never
+int timeLastRagdoll = 0;
+int timeLastForceEffect = 0;
+
+// Config (settingDebugLogger lives in UtilitiesLogger.h)
+float settingCooldownRagdoll = 0;
+float settingCooldownForceEffect = 0;
+
+bool settingIgnoreHitsWhileRagdolled = true;
+bool settingRequireHumanDamageSource = false;
+bool settingRequireGunDamageSource = false;
+
+float settingHealthPercentToCauseType0 = 0.0f;
+float settingHealthPercentToCauseType1 = 0.0f;
+float settingHealthPercentToCauseType2 = 0.0f;
+float settingHealthPercentToCauseType3 = 0.0f;
+
+int settingRagdollDurationForType0 = 0;
+int settingRagdollDurationForType1 = 0;
+int settingRagdollDurationForType2 = 0;
+int settingRagdollDurationForType3 = 0;
+
+float settingForceBaseToApplyToRagdoll = 0.0f;
+
+bool settingUseTotalHealthForPercentSetting = false;
+
+int settingChanceToApplyEffects = 100;
+
+bool settingMeanShotguns = false;
+
+bool settingImmunityRevolver = false;
+bool settingImmunityPistol = false;
+bool settingImmunityRepeater = false;
+bool settingImmunityRifle = false;
+bool settingImmunityShotgun = false;
+bool settingImmunitySniper = false;
+bool settingImmunityBow = false;
+bool settingImmunityMelee = false;
+bool settingImmunityLasso = false;
+bool settingImmunityBinoculars = false;
+bool settingImmunityLantern = false;
+bool settingImmunityTorch = false;
+bool settingImmunityKnife = false;
+
+bool settingImmunityHorse = false;
+bool settingImmunityVehicle = false;
+bool settingImmunityGrapple = false;
+bool settingImmunityMeleeCombat = false;
+bool settingImmunityDeadEye = false;
+bool settingImmunityCarrying = false;
+}
+
+void SetWeaponImmunitySettings()
+{
+    settingImmunityRevolver = GetIniBool("settingImmunityRevolver");
+    settingImmunityPistol = GetIniBool("settingImmunityPistol");
+    settingImmunityRepeater = GetIniBool("settingImmunityRepeater");
+    settingImmunityRifle = GetIniBool("settingImmunityRifle");
+    settingImmunityShotgun = GetIniBool("settingImmunityShotgun");
+    settingImmunitySniper = GetIniBool("settingImmunitySniper");
+    settingImmunityBow = GetIniBool("settingImmunityBow");
+    settingImmunityMelee = GetIniBool("settingImmunityMelee");
+    settingImmunityLasso = GetIniBool("settingImmunityLasso");
+    settingImmunityBinoculars = GetIniBool("settingImmunityBinoculars");
+    settingImmunityLantern = GetIniBool("settingImmunityLantern");
+    settingImmunityTorch = GetIniBool("settingImmunityTorch");
+    settingImmunityKnife = GetIniBool("settingImmunityKnife");
+}
+
+void SetRagdollSettings()
+{
+    // Cooldowns and durations are entered in seconds in the ini
+    settingCooldownRagdoll = GetIniFloat("settingCooldownRagdoll") * 1000;
+    settingCooldownForceEffect = GetIniFloat("settingCooldownForceEffect") * 1000;
+
+    settingIgnoreHitsWhileRagdolled = GetIniBool("settingIgnoreHitsWhileRagdolled");
+
+    settingRagdollDurationForType0 = std::lround(GetIniFloat("settingRagdollDurationForType0") * 1000);
+    settingRagdollDurationForType1 = std::lround(GetIniFloat("settingRagdollDurationForType1") * 1000);
+    settingRagdollDurationForType2 = std::lround(GetIniFloat("settingRagdollDurationForType2") * 1000);
+    settingRagdollDurationForType3 = std::lround(GetIniFloat("settingRagdollDurationForType3") * 1000);
+
+    // Percent thresholds are entered as 0-100 in the ini
+    settingHealthPercentToCauseType0 = GetIniFloat("settingHealthPercentToCauseType0") / 100.0f;
+    settingHealthPercentToCauseType1 = GetIniFloat("settingHealthPercentToCauseType1") / 100.0f;
+    settingHealthPercentToCauseType2 = GetIniFloat("settingHealthPercentToCauseType2") / 100.0f;
+    settingHealthPercentToCauseType3 = GetIniFloat("settingHealthPercentToCauseType3") / 100.0f;
+
+    settingForceBaseToApplyToRagdoll = GetIniFloat("settingForceBaseToApplyToRagdoll");
+}
+
+void SetConfigs()
+{
+    settingDebugLogger = GetIniBool("settingDebugLogger");
+
+    settingChanceToApplyEffects = GetIniInt("settingChanceToApplyEffects");
+    settingUseTotalHealthForPercentSetting = GetIniBool("settingUseTotalHealthForPercentSetting");
+
+    settingRequireHumanDamageSource = GetIniBool("settingRequireHumanDamageSource");
+    settingRequireGunDamageSource = GetIniBool("settingRequireGunDamageSource");
+
+    settingImmunityHorse = GetIniBool("settingImmunityHorse");
+    settingImmunityVehicle = GetIniBool("settingImmunityVehicle");
+    settingImmunityGrapple = GetIniBool("settingImmunityGrapple");
+    settingImmunityMeleeCombat = GetIniBool("settingImmunityMeleeCombat");
+    settingImmunityDeadEye = GetIniBool("settingImmunityDeadEye");
+    settingImmunityCarrying = GetIniBool("settingImmunityCarrying");
+
+    settingMeanShotguns = GetIniBool("settingMeanShotguns");
+
+    SetRagdollSettings();
+    SetWeaponImmunitySettings();
+}
 
 using namespace GETSPEDINFO;
 
@@ -72,18 +202,36 @@ RagdollType GetStrongerReaction(RagdollType reaction)
     }
 }
 
+// RagdollType is a scoped enum, so the native/log integer is looked up instead of cast
+int RagdollTypeToInt(RagdollType ragdollType)
+{
+    switch (ragdollType)
+    {
+        case RagdollType::Normal:
+            return 0;
+        case RagdollType::StiffFall:
+            return 1;
+        case RagdollType::NarrowStumble:
+            return 2;
+        case RagdollType::WideStumble:
+            return 3;
+        default:
+            return -1;
+    }
+}
+
 // Value taken from how the game scripts call SET_PED_TO_RAGDOLL_WITH_FALL; the remaining extra arguments are 0
 constexpr float FALL_EXTRA_P7 = 2.0f;
 
 void ApplyStandardRagdoll(Ped player, int duration, RagdollType ragdollType)
 {
-    BOOL result = PED::SET_PED_TO_RAGDOLL(player, duration, duration, (int)ragdollType, false, false, "");
+    BOOL result = PED::SET_PED_TO_RAGDOLL(player, duration, duration, RagdollTypeToInt(ragdollType), false, false, "");
     Log("SET_PED_TO_RAGDOLL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
 }
 
 void ApplyFallRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
 {
-    BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, duration, duration, (int)ragdollType,
+    BOOL result = PED::SET_PED_TO_RAGDOLL_WITH_FALL(player, duration, duration, RagdollTypeToInt(ragdollType),
         fallDirection.x, fallDirection.y, fallDirection.z, FALL_EXTRA_P7, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     Log("SET_PED_TO_RAGDOLL_WITH_FALL returned: " + ToString(result) + " IS_PED_RAGDOLL right after: " + ToString(PED::IS_PED_RAGDOLL(player)));
 }
@@ -107,7 +255,7 @@ bool ShouldUseFallRagdoll(Ped player, RagdollType& ragdollType)
 
 void ApplyRagdoll(Ped player, int duration, RagdollType ragdollType, Vector3 fallDirection)
 {
-    Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString((int)ragdollType));
+    Log("Player Ragdolled for " + ToString(duration) + "ms with type " + ToString(RagdollTypeToInt(ragdollType)));
     Log("CAN_PED_RAGDOLL before: " + ToString(PED::CAN_PED_RAGDOLL(player)));
 
     if (ShouldUseFallRagdoll(player, ragdollType))
@@ -246,7 +394,7 @@ bool DetermineShouldClearHitPacket()
 {
     if (settingRequireHumanDamageSource)
     {
-        if (!PED::IS_PED_HUMAN(hitPacket.attacker))
+        if (!CheckPedIsHuman(hitPacket.attacker))
         {
             Log("Damage source is not human, clearing hit packet");
             return true;
@@ -255,7 +403,7 @@ bool DetermineShouldClearHitPacket()
 
     if (settingRequireGunDamageSource)
     {
-        if (!WEAPON::IS_WEAPON_A_GUN(hitPacket.attackerWeapon))
+        if (!CheckWeaponIsGun(hitPacket.attackerWeapon))
         {
             Log("Damage source weapon not a gun");
             return true;
@@ -324,11 +472,11 @@ void UpdateHitSystem()
     Log("Event equippedWeapon Logged: " + ToString(hitPacket.equippedWeapon));
     Log("Event equippedWeapon Name Logged: " + ToString(WEAPON::_GET_WEAPON_NAME(hitPacket.equippedWeapon)));
 
-    hitPacket.fullHealth = ENTITY::GET_ENTITY_MAX_HEALTH(player, 0) - (100 - ATTRIBUTE::_GET_ATTRIBUTE_CORE_VALUE(player, 0));
+    hitPacket.fullHealth = 1.0f * (ENTITY::GET_ENTITY_MAX_HEALTH(player, 0) - (100 - ATTRIBUTE::_GET_ATTRIBUTE_CORE_VALUE(player, 0)));
     Log("Event fullHealth Logged: " + ToString(hitPacket.fullHealth));
     hitPacket.damage = hitPacket.event.damage;
     Log("Event Damage Logged: " + ToString(hitPacket.damage));
-    hitPacket.startHealth = lastHealth;
+    hitPacket.startHealth = 1.0f * lastHealth;
     Log("Event startHealth Logged: " + ToString(hitPacket.startHealth));
     Log("Event currentHealth Logged: " + ToString(ENTITY::GET_ENTITY_HEALTH(player)));
     hitPacket.damagePercentFullHealth = hitPacket.damage / MinOne(hitPacket.fullHealth);
@@ -337,7 +485,7 @@ void UpdateHitSystem()
     Log("Event damagePercentCurrentHealth Logged: " + ToString(hitPacket.damagePercentCurrentHealth));
 
     hitPacket.ragdollType = DetermineRagdollType();
-    Log("Event ragdollType Logged: " + ToString((int)hitPacket.ragdollType));
+    Log("Event ragdollType Logged: " + ToString(RagdollTypeToInt(hitPacket.ragdollType)));
     hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
     Log("Event ragdollDuration Logged: " + ToString(hitPacket.ragdollDuration));
 
@@ -408,10 +556,9 @@ void GetDamageEventData()
     }
 }
 
-// Debug: numpad 1 builds a valid hit packet from random values and lets the normal hit reaction handle it
 constexpr bool DEBUG_HIT_HOTKEY = true;
 
-Vector3 RandomHorizontalDirection()
+static Vector3 RandomHorizontalDirection()
 {
     float angle = RandomRange(0.0f, 6.2831853f);
 
@@ -422,22 +569,28 @@ Vector3 RandomHorizontalDirection()
     return direction;
 }
 
+// Fills the parts of a hit packet that come straight from the damage event with random values.
+// The player stands in as a human attacker holding whatever they have equipped.
+static void FillRandomHitPacketInputs(HitPacket& packet, Ped player)
+{
+    packet.equippedWeapon = GETSPEDINFO::GetPedWeapon(player);
+
+    packet.fullHealth = RandomRange(200.0f, 900.0f);
+    packet.startHealth = RandomRange(1.0f, packet.fullHealth);
+    packet.damage = RandomRange(1.0f, std::fmin(packet.startHealth, packet.fullHealth * 0.5f) + 1.0f);
+    packet.damagePercentFullHealth = packet.damage / MinOne(packet.fullHealth);
+    packet.damagePercentCurrentHealth = packet.damage / MinOne(packet.startHealth);
+
+    packet.attacker = player;
+    packet.attackerWeapon = packet.equippedWeapon;
+    packet.attackerDirection = RandomHorizontalDirection();
+}
+
+// Debug: numpad 1 builds a valid hit packet from random values and lets the normal hit reaction handle it
 void GenerateDebugHitPacket()
 {
     hitPacket = HitPacket();
-
-    hitPacket.equippedWeapon = GetPedWeapon(player);
-
-    hitPacket.fullHealth = RandomRange(200.0f, 900.0f);
-    hitPacket.startHealth = RandomRange(1.0f, hitPacket.fullHealth);
-    hitPacket.damage = RandomRange(1.0f, std::fmin(hitPacket.startHealth, hitPacket.fullHealth * 0.5f) + 1.0f);
-    hitPacket.damagePercentFullHealth = hitPacket.damage / MinOne(hitPacket.fullHealth);
-    hitPacket.damagePercentCurrentHealth = hitPacket.damage / MinOne(hitPacket.startHealth);
-
-    // The player stands in as a human attacker holding whatever they have equipped
-    hitPacket.attacker = player;
-    hitPacket.attackerWeapon = hitPacket.equippedWeapon;
-    hitPacket.attackerDirection = RandomHorizontalDirection();
+    FillRandomHitPacketInputs(hitPacket, player);
 
     hitPacket.ragdollType = DetermineRagdollType();
     hitPacket.ragdollDuration = DetermineDuration(hitPacket.ragdollType);
@@ -458,7 +611,7 @@ void DebugHitPacket()
     GenerateDebugHitPacket();
     Log("DEBUG fullHealth " + ToString(hitPacket.fullHealth) + " startHealth " + ToString(hitPacket.startHealth) +
         " damage " + ToString(hitPacket.damage) + " percent " + ToString(GetDamagePercentFromHitPacket()) +
-        " ragdollType " + ToString((int)hitPacket.ragdollType) + " duration " + ToString(hitPacket.ragdollDuration) +
+        " ragdollType " + ToString(RagdollTypeToInt(hitPacket.ragdollType)) + " duration " + ToString(hitPacket.ragdollDuration) +
         " force " + ToString(hitPacket.forceIntensity) + " rollPassed " + ToString(hitPacket.rollPassed) +
         " weapon " + ToString(hitPacket.attackerWeapon));
 }

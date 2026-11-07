@@ -34,7 +34,6 @@
     <ClInclude Include="..\..\inc\UtilitiesRandom.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="Globals.h" />
     <ClInclude Include="..\..\inc\UtilitiesMisc.h">
       <Filter>include</Filter>
     </ClInclude>

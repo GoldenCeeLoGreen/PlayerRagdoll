@@ -9,7 +9,6 @@
   <ItemGroup>
     <ClCompile Include="script.cpp" />
     <ClInclude Include="..\..\inc\UtilitiesMisc.h" />
-    <ClInclude Include="Globals.h" />
     <None Include="PlayerRagdoll.ini" />
   </ItemGroup>
   <ItemGroup>
